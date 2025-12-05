@@ -74,6 +74,7 @@ AMP, PPO
 
 - 기본으로 생성하면 다음과 같이 생성됨
 - cart pole로 되어 있어 커스텀 코드로 수정
+
 ![이미지](./image/Pasted%20image%2020251129135716.png)
 
 - usd 파일
