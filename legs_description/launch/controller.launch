@@ -1,0 +1,9 @@
+<launch>
+
+<rosparam file="$(find legs_description)/launch/controller.yaml" command="load"/>
+<node name="controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen" ns="legs" args="lbase_joint_position_controller rbase_joint_position_controller ll1_joint_position_controller rl1_joint_position_controller ll2_joint_position_controller rl2_joint_position_controller ll3_joint_position_controller rl3_joint_position_controller ll4_joint_position_controller rl4_joint_position_controller ll5_joint_position_controller rl5_joint_position_controller joint_state_controller "/>
+<node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="false" output="screen">
+  <remap from="/joint_states" to="/legs/joint_states"/>
+</node>
+
+</launch>
