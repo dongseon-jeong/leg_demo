@@ -148,7 +148,7 @@ leg\scripts\rsl_rl\train.py
 
 - 학습 실행
 ```bash
-python scripts/rsl_rl/train.py --task=Template-Leg-Direct-v0 --num_envs=10000 --max_iterations=1000000
+python scripts/rsl_rl/train.py --task=Template-Leg-Direct-v0 --num_envs=10000 --max_iterations=100000
 ```
 
 

@@ -278,28 +278,35 @@ def compute_rewards(
     base_height_target: float,
     reset_terminated: torch.Tensor,  # [N]
 ):
-    # alive / termination
+    # -----------------------
+    # 1) alive / termination
+    # -----------------------
     alive_term = (1.0 - reset_terminated.float())
     rew_alive = rew_scale_alive * alive_term
     rew_termination = rew_scale_terminated * reset_terminated.float()
 
-    # forward velocity along +x
+    # -----------------------
+    # 2) forward velocity
+    #    - only reward going forward (backwards -> 0)
+    # -----------------------
     forward_vel = base_lin_vel[:, 0]
-    rew_forward = rew_scale_forward_vel * forward_vel
+    forward_vel_clipped = torch.clamp(forward_vel, 0.0, 3.0)
+    rew_forward = rew_scale_forward_vel * forward_vel_clipped
 
-    # upright reward: near target height and small tilt
+    # -----------------------
+    # 3) upright reward
+    #    - height near target, tilt small일수록 1에 가까움
+    # -----------------------
     height_err = base_height - base_height_target
-    # gaussian-like reward around (height_err=0, tilt=0)
+    # 아래 계수(5.0, 2.0)는 나중에 튜닝해도 됨
     upright_term = torch.exp(-5.0 * height_err * height_err - 2.0 * tilt_angle * tilt_angle)
     rew_upright = rew_scale_upright * upright_term
 
-    # joint velocity penalty
+    # -----------------------
+    # 4) small penalties (very weak)
+    # -----------------------
     rew_joint_vel = rew_scale_joint_vel * torch.sum(joint_vel * joint_vel, dim=1)
-
-    # action rate penalty
     rew_action_rate = rew_scale_action_rate * torch.sum(action_rate * action_rate, dim=1)
-
-    # energy penalty (|tau * qdot|)
     rew_energy = rew_scale_energy * torch.sum(torch.abs(joint_torques * joint_vel), dim=1)
 
     total_reward = (
