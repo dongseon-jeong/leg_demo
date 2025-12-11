@@ -202,6 +202,20 @@ class LegEnv(DirectRLEnv):
         fallen = (base_height < self.cfg.min_base_height) | (tilt_angle > max_tilt)
 
         time_out = self.episode_length_buf >= self.max_episode_length - 1
+
+        time_out = time_out & ~fallen
+        # 디버그
+        step_i = int(self.common_step_counter)  # python int
+
+        if step_i % 100 == 0:
+            print(
+                f"[DEBUG] step={step_i}  "
+                f"fallen_ratio={fallen.float().mean().item():.3f}  "
+                f"timeout_ratio={time_out.float().mean().item():.3f}  "
+                f"height_mean={base_height.mean().item():.3f}  "
+                f"tilt_mean={tilt_angle.mean().item():.3f}"
+            )
+
         return fallen, time_out
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
@@ -245,19 +259,25 @@ class LegEnv(DirectRLEnv):
 def _compute_tilt_from_quat(quat: torch.Tensor) -> torch.Tensor:
     """Compute tilt angle of base from quaternion.
 
-    quat: [N, 4] with ordering [qx, qy, qz, qw] (Isaac convention).
+    quat: [N, 4] with ordering [qw, qx, qy, qz] from root_state_w.
     Returns angle in radians between base z-axis and world up.
     """
-    qx = quat[:, 0]
-    qy = quat[:, 1]
-    qz = quat[:, 2]
-    qw = quat[:, 3]
+
+    # reorder to [qx, qy, qz, qw]
+    qw = quat[:, 0]
+    qx = quat[:, 1]
+    qy = quat[:, 2]
+    qz = quat[:, 3]
 
     # rotation angle from quaternion
     sin_half = torch.sqrt(qx * qx + qy * qy + qz * qz)
     cos_half = torch.clamp(qw, -1.0, 1.0)
     tilt = 2.0 * torch.atan2(sin_half, cos_half)
+
+    # numerical safety (optional)
+    tilt = torch.clamp(tilt, 0.0, math.pi)
     return tilt
+
 
 
 @torch.jit.script
