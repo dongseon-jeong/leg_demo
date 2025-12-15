@@ -174,7 +174,10 @@ python scripts/rsl_rl/train.py --task=Template-Leg-Direct-v0 --num_envs=10000 --
 [307.600s] Simulation App Shutting Down
 ```
 
-
+- 추론
+```bash
+python scripts/rsl_rl/play.py --task Template-Leg-Direct-v0 --num_envs 1 --checkpoint logs/rsl_rl/leg/2025-12-15-22-00-00/model_39400.pt
+```
 
 
 # simul ros 통신 구현
