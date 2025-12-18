@@ -8,6 +8,7 @@ from isaaclab.utils import configclass
 
 from .legs_cfg import LEGS_CFG
 
+from isaaclab.sensors import ContactSensorCfg
 
 @configclass
 class LegEnvCfg(DirectRLEnvCfg):
@@ -20,9 +21,8 @@ class LegEnvCfg(DirectRLEnvCfg):
 
     sim: SimulationCfg = SimulationCfg(dt=1.0 / 120.0, render_interval=decimation)
 
-    # ⬇ 여기서도 env 복수 개를 대상으로 /world/legs 를 패턴으로 지정
     robot_cfg: ArticulationCfg = LEGS_CFG.replace(
-        prim_path="/World/envs/env_.*/legs"
+        prim_path="/World/envs/env_.*/legs"   # ✅ 반드시 / 로 시작
     )
 
     scene: InteractiveSceneCfg = InteractiveSceneCfg(
@@ -75,3 +75,21 @@ class LegEnvCfg(DirectRLEnvCfg):
 
     action_scale = 5.0
     torque_limit = 5.0
+
+
+    rew_scale_leg_interference = -0.02   # ✅ 마이너스 보상(패널티)
+    leg_interference_force_threshold = 20.0  # ✅ N 단위(대충 시작값)
+
+    scene.left_leg_contact = ContactSensorCfg(
+        prim_path="/World/envs/env_.*/legs/legs/ll.*",
+        filter_prim_paths_expr=["/World/envs/env_.*/legs/legs/rl.*"],
+        update_period=0.0,
+        history_length=1,
+    )
+
+    scene.right_leg_contact = ContactSensorCfg(
+        prim_path="/World/envs/env_.*/legs/legs/rl.*",
+        filter_prim_paths_expr=["/World/envs/env_.*/legs/legs/ll.*"],
+        update_period=0.0,
+        history_length=1,
+    )

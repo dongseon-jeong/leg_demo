@@ -10,10 +10,12 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 LEGS_CFG = ArticulationCfg(
     # ⬇ 최종 스테이지에서 로봇의 prim 경로 패턴
     #    /World/envs/env_0/world/legs, /World/envs/env_1/world/legs, ...
-    prim_path="{ENV_REGEX_NS}/legs",
+    prim_path="/World/envs/env_.*/legs",   # ✅ 동일하게
     spawn=sim_utils.UsdFileCfg(
         # 여긴 그대로 네 USD 파일 경로
-        usd_path=f"D:/making/dynamixel/leg.usd",
+        usd_path=f"D:/making/dynamixel/leg_w.usd",
+        activate_contact_sensors=True,   # ✅ 추가
+        copy_from_source=True,   # ✅ 추가/수정
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=None,
             max_depenetration_velocity=10.0,
@@ -26,7 +28,7 @@ LEGS_CFG = ArticulationCfg(
             sleep_threshold=0.005,
             stabilization_threshold=0.001,
         ),
-        copy_from_source=False,
+        # copy_from_source=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.5),

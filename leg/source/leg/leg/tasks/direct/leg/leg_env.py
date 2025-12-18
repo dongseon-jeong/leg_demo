@@ -25,42 +25,82 @@ class LegEnv(DirectRLEnv):
     def __init__(self, cfg: LegEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
-        # find DOF indices for the controlled joints
-        # cfg.joint_names: list of 12 joint names (lbase_joint, rbase_joint, ...)
         self._dof_indices, _ = self.robot.find_joints(self.cfg.joint_names)
 
-        # convenient references to simulation buffers
         self.joint_pos = self.robot.data.joint_pos
         self.joint_vel = self.robot.data.joint_vel
 
-        # buffer for actions / previous actions / torques
         num_dofs = len(self.cfg.joint_names)
         self.actions = torch.zeros(self.num_envs, num_dofs, device=self.device)
         self.last_actions = torch.zeros_like(self.actions)
         self.joint_torques = torch.zeros_like(self.actions)
+
+        # ✅ 추가: cfg에서 만든 센서 2개 핸들 가져오기
+        self._left_leg_contact = self.scene["left_leg_contact"]
+        self._right_leg_contact = self.scene["right_leg_contact"]
 
     # --------------------------------------------------------------------- #
     # Scene setup
     # --------------------------------------------------------------------- #
 
     def _setup_scene(self):
-        # create robot articulation
         self.robot = Articulation(self.cfg.robot_cfg)
-
-        # add ground plane
         spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
 
-        # clone and replicate environments
         self.scene.clone_environments(copy_from_source=False)
 
-        # filter collisions for CPU simulation
+        # ✅ ContactReport API 디버그/강제 적용 (ContactSensor 초기화 전에!)
+        try:
+            import omni.usd
+            from pxr import Usd, UsdPhysics, PhysxSchema
+
+            stage = omni.usd.get_context().get_stage()
+            root_path = "/World/envs/env_0/legs/legs"
+            root = stage.GetPrimAtPath(root_path)
+
+            if not root.IsValid():
+                print(f"[DBG] root not found: {root_path}", flush=True)
+            else:
+                total = 0
+                rigid = 0
+                had = 0
+                applied = 0
+
+                for prim in Usd.PrimRange(root):
+                    total += 1
+                    name = prim.GetName()
+
+                    # ll* / rl* 링크 후보만 대상으로
+                    if not (name.startswith("ll") or name.startswith("rl")):
+                        continue
+
+                    # 1) RigidBodyAPI 있는지
+                    is_rigid = prim.HasAPI(UsdPhysics.RigidBodyAPI)
+                    if is_rigid:
+                        rigid += 1
+
+                    # 2) ContactReportAPI 있는지 / 없으면 apply
+                    if prim.HasAPI(PhysxSchema.PhysxContactReportAPI):
+                        had += 1
+                    else:
+                        # RigidBody가 아니더라도 일단 적용 시도 (Articulation link여도 붙는 경우가 있음)
+                        PhysxSchema.PhysxContactReportAPI.Apply(prim)
+                        applied += 1
+
+                print(
+                    f"[DBG] scanned={total}  rigid={rigid}  had_report={had}  applied_report={applied}  under={root_path}",
+                    flush=True,
+                )
+
+        except Exception as e:
+            print("[DBG] contact report patch failed:", e, flush=True)
+        # ✅ 여기까지 추가
+
         if self.device == "cpu":
             self.scene.filter_collisions(global_prim_paths=[])
 
-        # register articulation in the scene
         self.scene.articulations["robot"] = self.robot
 
-        # add a light
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
 
@@ -167,6 +207,29 @@ class LegEnv(DirectRLEnv):
         torques = self.joint_torques
         action_rate = self.actions - self.last_actions
 
+
+        # ✅ leg-leg interference forces: [N, 2, 3]
+        # force_matrix_w는 "필터로 지정한 상대(반대 다리)"와의 접촉힘만 들어오므로
+        # 지면 접촉힘이 섞이는 문제를 피할 수 있음.
+        lfm = self._left_leg_contact.data.force_matrix_w
+        rfm = self._right_leg_contact.data.force_matrix_w
+
+        # force_matrix_w가 아직 None일 수 있으니 방어
+        if lfm is None:
+            lf = torch.zeros(self.num_envs, 3, device=self.device)
+        else:
+            # 보통 [N, 1, F, 3] -> [N, 3]
+            lf = lfm.sum(dim=(1, 2))
+
+        if rfm is None:
+            rf = torch.zeros(self.num_envs, 3, device=self.device)
+        else:
+            rf = rfm.sum(dim=(1, 2))
+
+        leg_interf_forces_w = torch.stack((lf, rf), dim=1)  # [N, 2, 3]
+
+
+
         total_reward = compute_rewards(
             self.cfg.rew_scale_alive,
             self.cfg.rew_scale_terminated,
@@ -175,6 +238,15 @@ class LegEnv(DirectRLEnv):
             self.cfg.rew_scale_joint_vel,
             self.cfg.rew_scale_action_rate,
             self.cfg.rew_scale_energy,
+
+
+            # ✅ 추가 2개
+            self.cfg.rew_scale_leg_interference,
+            self.cfg.leg_interference_force_threshold,
+            leg_interf_forces_w,
+
+
+
             base_lin_vel,
             base_height,
             tilt_angle,
@@ -289,6 +361,14 @@ def compute_rewards(
     rew_scale_joint_vel: float,
     rew_scale_action_rate: float,
     rew_scale_energy: float,
+
+
+    # ✅ 추가
+    rew_scale_leg_interference: float,
+    leg_interference_force_threshold: float,
+    leg_interf_forces_w: torch.Tensor,   # [N, K, 3]
+
+
     base_lin_vel: torch.Tensor,      # [N, 3]
     base_height: torch.Tensor,       # [N]
     tilt_angle: torch.Tensor,        # [N]
@@ -329,6 +409,21 @@ def compute_rewards(
     rew_action_rate = rew_scale_action_rate * torch.sum(action_rate * action_rate, dim=1)
     rew_energy = rew_scale_energy * torch.sum(torch.abs(joint_torques * joint_vel), dim=1)
 
+
+
+
+    # ✅ 5) leg interference penalty (continuous)
+    # [N, K]
+    interf_mag = torch.linalg.norm(leg_interf_forces_w, dim=-1)
+    # [N]
+    interf_max = interf_mag.max(dim=1).values
+
+    excess = torch.clamp(interf_max - leg_interference_force_threshold, min=0.0)
+    rew_leg_interf = rew_scale_leg_interference * excess  # scale이 음수면 패널티
+
+
+
+
     total_reward = (
         rew_alive
         + rew_termination
@@ -337,5 +432,6 @@ def compute_rewards(
         + rew_joint_vel
         + rew_action_rate
         + rew_energy
+        + rew_leg_interf
     )
     return total_reward
