@@ -25,6 +25,10 @@ class LegEnv(DirectRLEnv):
     def __init__(self, cfg: LegEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
 
+        self._left_contact: ContactSensor = self.scene.sensors["left_leg_contact"]
+        self._right_contact: ContactSensor = self.scene.sensors["right_leg_contact"]
+        self._low_height_count = torch.zeros(self.num_envs, device=self.device, dtype=torch.int32)
+
         self._dof_indices, _ = self.robot.find_joints(self.cfg.joint_names)
 
         self.joint_pos = self.robot.data.joint_pos
@@ -38,6 +42,9 @@ class LegEnv(DirectRLEnv):
         # ✅ 추가: cfg에서 만든 센서 2개 핸들 가져오기
         self._left_leg_contact = self.scene["left_leg_contact"]
         self._right_leg_contact = self.scene["right_leg_contact"]
+
+        self._low_count  = torch.zeros(self.num_envs, dtype=torch.int32, device=self.device)
+        self._tilt_count = torch.zeros(self.num_envs, dtype=torch.int32, device=self.device)
 
     # --------------------------------------------------------------------- #
     # Scene setup
@@ -104,31 +111,51 @@ class LegEnv(DirectRLEnv):
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
 
+        print("[DBG] robot prim:", self.cfg.robot_cfg.prim_path, flush=True)
+        print("[DBG] left sensor prim:", self.cfg.scene.left_leg_contact.prim_path, flush=True)
+
     # --------------------------------------------------------------------- #
     # RL interface
     # --------------------------------------------------------------------- #
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
-        # clip to [-1, 1] for safety
-        actions = torch.clamp(actions, -1.0, 1.0)
+        # # clip to [-1, 1] for safety
+        # actions = torch.clamp(actions, -1.0, 1.0)
+        # # store previous actions for action_rate penalty
+        # self.last_actions[:] = self.actions
+        # self.actions[:] = actions
 
-        # store previous actions for action_rate penalty
+        alpha = 0.2  # 0~1, 작을수록 부드러움
+        actions = torch.clamp(actions, -1.0, 1.0)
         self.last_actions[:] = self.actions
-        self.actions[:] = actions
+        self.actions[:] = (1 - alpha) * self.actions + alpha * actions
 
     def _apply_action(self) -> None:
-        # scale actions to torques
-        torques = self.actions * self.cfg.action_scale
+        # actions in [-1, 1]
+        actions = torch.clamp(self.actions, -1.0, 1.0)
 
-        # optional torque limit
-        if self.cfg.torque_limit > 0.0:
-            torques = torch.clamp(torques, -self.cfg.torque_limit, self.cfg.torque_limit)
+        # step-based ramp (0~1) : first 0.5s
+        ramp_steps = int(0.5 / (self.cfg.sim.dt * self.cfg.decimation))  # 0.5초
+        ramp = torch.clamp(
+            self.episode_length_buf.float() / float(max(ramp_steps, 1)),
+            0.0,
+            1.0,
+        ).unsqueeze(-1)  # [N,1]
 
-        # apply torques only to controlled joints
-        self.robot.set_joint_effort_target(torques, joint_ids=self._dof_indices)
+        # default pose for controlled joints
+        q0 = self.robot.data.default_joint_pos[:, self._dof_indices]  # [N, D]
 
-        # save for energy penalty
-        self.joint_torques[:] = torques
+        # action_scale is now "radian delta" (e.g., 0.25~0.5)
+        q_target = q0 + (actions * self.cfg.action_scale) * ramp  # [N, D]
+
+        # PD position target (ImplicitActuatorCfg stiffness/damping will be used)
+        self.robot.set_joint_position_target(q_target, joint_ids=self._dof_indices)
+
+        # (optional) If you still want "energy penalty", torque is not directly available.
+        # Use a proxy: squared position error * ramp (or |qd|) etc.
+        # Here we just store something compatible shape-wise:
+        self.joint_torques[:] = 0.0
+
 
     def _get_observations(self) -> dict:
         # refresh joint states
@@ -138,7 +165,20 @@ class LegEnv(DirectRLEnv):
         # root state: [x, y, z, qx, qy, qz, qw, vx, vy, vz, wx, wy, wz]
         root_state = self.robot.data.root_state_w
         base_pos = root_state[:, 0:3]
-        base_height = base_pos[:, 2]
+
+
+        # (추천) COM 기반 height 우선
+        if hasattr(self.robot.data, "root_com_pos_w"):
+            base_height = self.robot.data.root_com_pos_w[:, 2]
+        elif hasattr(self.robot.data, "com_pos_w"):
+            # 보통 [N,3] 형태
+            base_height = self.robot.data.com_pos_w[:, 2]
+        else:
+            # fallback: base_link 원점
+            base_height = base_pos[:, 2]
+
+
+        # base_height = base_pos[:, 2]
         base_lin_vel = root_state[:, 7:10]
         base_ang_vel = root_state[:, 10:13]
         base_quat = root_state[:, 3:7]
@@ -186,6 +226,9 @@ class LegEnv(DirectRLEnv):
             dim=-1,
         )
 
+        obs = torch.nan_to_num(obs, nan=0.0, posinf=0.0, neginf=0.0)
+        obs = torch.clamp(obs, -100.0, 100.0)   # 선택: 폭주 값 제한
+
         # NOTE: obs.shape[-1] == 48, so LegEnvCfg.observation_space must be 48.
         observations = {"policy": obs}
         return observations
@@ -197,7 +240,18 @@ class LegEnv(DirectRLEnv):
 
         root_state = self.robot.data.root_state_w
         base_pos = root_state[:, 0:3]
-        base_height = base_pos[:, 2]
+
+        # (추천) COM 기반 height 우선
+        if hasattr(self.robot.data, "root_com_pos_w"):
+            base_height = self.robot.data.root_com_pos_w[:, 2]
+        elif hasattr(self.robot.data, "com_pos_w"):
+            # 보통 [N,3] 형태
+            base_height = self.robot.data.com_pos_w[:, 2]
+        else:
+            # fallback: base_link 원점
+            base_height = base_pos[:, 2]
+
+        # base_height = base_pos[:, 2]
         base_lin_vel = root_state[:, 7:10]
         base_quat = root_state[:, 3:7]
 
@@ -208,27 +262,39 @@ class LegEnv(DirectRLEnv):
         action_rate = self.actions - self.last_actions
 
 
-        # ✅ leg-leg interference forces: [N, 2, 3]
-        # force_matrix_w는 "필터로 지정한 상대(반대 다리)"와의 접촉힘만 들어오므로
-        # 지면 접촉힘이 섞이는 문제를 피할 수 있음.
-        lfm = self._left_leg_contact.data.force_matrix_w
-        rfm = self._right_leg_contact.data.force_matrix_w
+        if int(self.common_step_counter) % 500 == 0:
+            fwd = base_lin_vel[:, 0]
+            print("[DBG] fwd_vel mean/max:", fwd.mean().item(), fwd.max().item(), flush=True)
 
-        # force_matrix_w가 아직 None일 수 있으니 방어
-        if lfm is None:
-            lf = torch.zeros(self.num_envs, 3, device=self.device)
+        if int(self.common_step_counter) % 500 == 0:
+            base_pos = self.robot.data.root_state_w[:, 0:3]
+            base_lin_vel = self.robot.data.root_state_w[:, 7:10]
+            print("[DBG] base_x mean/min/max:",
+                base_pos[:,0].mean().item(), base_pos[:,0].min().item(), base_pos[:,0].max().item(),
+                flush=True)
+            print("[DBG] linvel_x mean/max:",
+                base_lin_vel[:,0].mean().item(), base_lin_vel[:,0].max().item(),
+                flush=True)
+
+        # ✅ leg-leg interference (use two scene sensors)
+        fm_l = self._left_contact.data.force_matrix_w   # [N, L, F, 3] or [N,1,F,3]
+        fm_r = self._right_contact.data.force_matrix_w
+
+        # 안전장치: None이면 0
+        if fm_l is None:
+            max_l = torch.zeros(self.num_envs, device=self.device)
         else:
-            # 보통 [N, 1, F, 3] -> [N, 3]
-            lf = lfm.sum(dim=(1, 2))
+            mag_l = torch.linalg.norm(fm_l, dim=-1)                 # [N, L, F]
+            max_l = mag_l.max(dim=-1).values.max(dim=-1).values     # [N]
 
-        if rfm is None:
-            rf = torch.zeros(self.num_envs, 3, device=self.device)
+        if fm_r is None:
+            max_r = torch.zeros(self.num_envs, device=self.device)
         else:
-            rf = rfm.sum(dim=(1, 2))
+            mag_r = torch.linalg.norm(fm_r, dim=-1)
+            max_r = mag_r.max(dim=-1).values.max(dim=-1).values
 
-        leg_interf_forces_w = torch.stack((lf, rf), dim=1)  # [N, 2, 3]
-
-
+        # env별 최대 간섭힘
+        leg_interf_max_force = torch.maximum(max_l, max_r)          # [N]
 
         total_reward = compute_rewards(
             self.cfg.rew_scale_alive,
@@ -243,7 +309,7 @@ class LegEnv(DirectRLEnv):
             # ✅ 추가 2개
             self.cfg.rew_scale_leg_interference,
             self.cfg.leg_interference_force_threshold,
-            leg_interf_forces_w,
+            leg_interf_max_force,
 
 
 
@@ -256,39 +322,94 @@ class LegEnv(DirectRLEnv):
             self.cfg.base_height_target,
             self.reset_terminated,
         )
+
+        total_reward = torch.nan_to_num(total_reward, nan=0.0, posinf=0.0, neginf=0.0)
+        total_reward = torch.clamp(total_reward, -100.0, 100.0)  # 선택
+
         return total_reward
 
-    def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
-        root_state = self.robot.data.root_state_w
-        base_pos = root_state[:, 0:3]
-        base_height = base_pos[:, 2]
-        base_quat = root_state[:, 3:7]
+    def _get_dones(self):
+        root = self.robot.data.root_state_w
+        pos = root[:, 0:3]
+        linvel = root[:, 7:10]
+        angvel = root[:, 10:13]
 
+
+        # (추천) COM 기반 height 우선
+        if hasattr(self.robot.data, "root_com_pos_w"):
+            base_height = self.robot.data.root_com_pos_w[:, 2]
+        elif hasattr(self.robot.data, "com_pos_w"):
+            # 보통 [N,3] 형태
+            base_height = self.robot.data.com_pos_w[:, 2]
+        else:
+            # fallback: base_link 원점
+            base_height = pos[:, 2]
+
+
+        # base_height = pos[:, 2]
+        base_quat = root[:, 3:7]
         tilt_angle = _compute_tilt_from_quat(base_quat)
 
-        # termination if:
-        #  - base too low
-        #  - tilt too large
         max_tilt = max(self.cfg.max_base_pitch, self.cfg.max_base_roll)
 
-        fallen = (base_height < self.cfg.min_base_height) | (tilt_angle > max_tilt)
+        # safety
+        bad_nan = torch.isnan(root).any(dim=1) | torch.isinf(root).any(dim=1)
+        bad_oob = (pos.abs().max(dim=1).values > 100.0)
+        bad_vel = (linvel.abs().max(dim=1).values > 20.0) | (angvel.abs().max(dim=1).values > 50.0)
+        bad = bad_nan | bad_oob | bad_vel
+
+        # raw conditions
+        low  = base_height < self.cfg.min_base_height
+        tilt = tilt_angle > max_tilt
+
+        # debounce counters
+        self._low_count  = torch.where(low,  self._low_count + 1, torch.zeros_like(self._low_count))
+        self._tilt_count = torch.where(tilt, self._tilt_count + 1, torch.zeros_like(self._tilt_count))
+
+        low_term_steps  = 3   # 너가 원한 low 3-step
+        tilt_term_steps = 2   # 추천: tilt는 1~2면 충분 (누워있는 걸 빨리 끊어야 함)
+
+        low_term  = self._low_count  >= low_term_steps
+        tilt_term = self._tilt_count >= tilt_term_steps
+
+        fallen = low_term | tilt_term | bad
 
         time_out = self.episode_length_buf >= self.max_episode_length - 1
-
         time_out = time_out & ~fallen
-        # 디버그
-        step_i = int(self.common_step_counter)  # python int
 
-        if step_i % 100 == 0:
+        below0 = (base_height < 0.0).float().mean().item()
+        belowMin = (base_height < self.cfg.min_base_height).float().mean().item()
+
+        # debug (원하면 유지)
+        if int(self.common_step_counter) % 200 == 0:
+            print("[DONE] low/low_term/tilt/tilt_term/bad:",
+                low.float().mean().item(),
+                low_term.float().mean().item(),
+                tilt.float().mean().item(),
+                tilt_term.float().mean().item(),
+                bad.float().mean().item(),
+                flush=True)
+            print("[DBG] max_tilt:", float(max_tilt),
+                "tilt mean/min/max:",
+                tilt_angle.mean().item(), tilt_angle.min().item(), tilt_angle.max().item(),
+                flush=True)
+            print("[DBG] base_quat mean:", 
+                base_quat.mean(dim=0).tolist(), 
+                flush=True)
             print(
-                f"[DEBUG] step={step_i}  "
-                f"fallen_ratio={fallen.float().mean().item():.3f}  "
-                f"timeout_ratio={time_out.float().mean().item():.3f}  "
-                f"height_mean={base_height.mean().item():.3f}  "
-                f"tilt_mean={tilt_angle.mean().item():.3f}"
+                "[DBG] base_height mean/min/max:",
+                base_height.mean().item(),
+                base_height.min().item(),
+                base_height.max().item(),
+                "min_base_height:",
+                float(self.cfg.min_base_height),
+                flush=True,
             )
+            print(f"[DBG] base_height < 0 ratio: {below0:.4f}, < min_base_height ratio: {belowMin:.4f}", flush=True)
 
         return fallen, time_out
+
+
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         if env_ids is None:
@@ -317,6 +438,11 @@ class LegEnv(DirectRLEnv):
         self.last_actions[env_ids] = 0.0
         self.joint_torques[env_ids] = 0.0
 
+        self._low_height_count[env_ids] = 0
+
+        self._low_count[env_ids] = 0
+        self._tilt_count[env_ids] = 0
+
         # write to sim
         self.robot.write_root_pose_to_sim(default_root_state[:, :7], env_ids)
         self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
@@ -328,28 +454,19 @@ class LegEnv(DirectRLEnv):
 # ------------------------------------------------------------------------- #
 
 
-def _compute_tilt_from_quat(quat: torch.Tensor) -> torch.Tensor:
-    """Compute tilt angle of base from quaternion.
+def _compute_tilt_from_quat(quat_wxyz: torch.Tensor) -> torch.Tensor:
+    """quat_wxyz: [N,4] = (qw, qx, qy, qz). Returns tilt angle (0..pi)."""
+    qw = quat_wxyz[:, 0]
+    qx = quat_wxyz[:, 1]
+    qy = quat_wxyz[:, 2]
+    qz = quat_wxyz[:, 3]
 
-    quat: [N, 4] with ordering [qw, qx, qy, qz] from root_state_w.
-    Returns angle in radians between base z-axis and world up.
-    """
+    # Rotation matrix element R33 for body z-axis vs world up
+    # R33 = 1 - 2*(x^2 + y^2) for quaternion (w,x,y,z)
+    z_wz = 1.0 - 2.0 * (qx * qx + qy * qy)
 
-    # reorder to [qx, qy, qz, qw]
-    qw = quat[:, 0]
-    qx = quat[:, 1]
-    qy = quat[:, 2]
-    qz = quat[:, 3]
-
-    # rotation angle from quaternion
-    sin_half = torch.sqrt(qx * qx + qy * qy + qz * qz)
-    cos_half = torch.clamp(qw, -1.0, 1.0)
-    tilt = 2.0 * torch.atan2(sin_half, cos_half)
-
-    # numerical safety (optional)
-    tilt = torch.clamp(tilt, 0.0, math.pi)
+    tilt = torch.acos(torch.clamp(z_wz, -1.0, 1.0))
     return tilt
-
 
 
 @torch.jit.script
@@ -366,7 +483,7 @@ def compute_rewards(
     # ✅ 추가
     rew_scale_leg_interference: float,
     leg_interference_force_threshold: float,
-    leg_interf_forces_w: torch.Tensor,   # [N, K, 3]
+    leg_interf_max_force: torch.Tensor,   # [N]
 
 
     base_lin_vel: torch.Tensor,      # [N, 3]
@@ -393,13 +510,30 @@ def compute_rewards(
     forward_vel_clipped = torch.clamp(forward_vel, 0.0, 3.0)
     rew_forward = rew_scale_forward_vel * forward_vel_clipped
 
+
+    # -----------------------
+    # 2-b) velocity tracking (commanded speed)
+    # -----------------------
+    v_cmd = 0.5
+    k = 2.0
+
+    forward_vel = base_lin_vel[:, 0]
+    vel_err = forward_vel - v_cmd
+
+    # baseline = exp(-k * v_cmd^2)  (v=0일 때 err=-v_cmd)
+    baseline = 0.6065306597  # exp(-0.5) when k=2, v_cmd=0.5
+
+    rew_vel_track = 10.0 * (torch.exp(-k * vel_err * vel_err) - baseline)
+    # -> v=0이면 거의 0, v=v_cmd이면 + (2*(1-baseline)) ≈ +0.787
+
+
     # -----------------------
     # 3) upright reward
     #    - height near target, tilt small일수록 1에 가까움
     # -----------------------
     height_err = base_height - base_height_target
     # 아래 계수(5.0, 2.0)는 나중에 튜닝해도 됨
-    upright_term = torch.exp(-5.0 * height_err * height_err - 2.0 * tilt_angle * tilt_angle)
+    upright_term = torch.exp(-5.0 * height_err * height_err - 4.0 * tilt_angle * tilt_angle)
     rew_upright = rew_scale_upright * upright_term
 
     # -----------------------
@@ -413,21 +547,17 @@ def compute_rewards(
 
 
     # ✅ 5) leg interference penalty (continuous)
-    # [N, K]
-    interf_mag = torch.linalg.norm(leg_interf_forces_w, dim=-1)
-    # [N]
-    interf_max = interf_mag.max(dim=1).values
-
-    excess = torch.clamp(interf_max - leg_interference_force_threshold, min=0.0)
-    rew_leg_interf = rew_scale_leg_interference * excess  # scale이 음수면 패널티
-
-
-
+    excess = torch.clamp(leg_interf_max_force - leg_interference_force_threshold, min=0.0)
+    # ✅ 상한 + 정규화 (수천 N 와도 폭발 금지)
+    excess = torch.clamp(excess, max=200.0)
+    pen = excess / 200.0
+    rew_leg_interf = rew_scale_leg_interference * pen
 
     total_reward = (
         rew_alive
         + rew_termination
         + rew_forward
+        + rew_vel_track      # ✅ 추가
         + rew_upright
         + rew_joint_vel
         + rew_action_rate

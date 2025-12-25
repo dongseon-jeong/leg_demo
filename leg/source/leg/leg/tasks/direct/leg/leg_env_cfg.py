@@ -27,7 +27,7 @@ class LegEnvCfg(DirectRLEnvCfg):
 
     scene: InteractiveSceneCfg = InteractiveSceneCfg(
         num_envs=1024,
-        env_spacing=3.0,
+        env_spacing=2.0,
         replicate_physics=True,
     )
 
@@ -46,50 +46,37 @@ class LegEnvCfg(DirectRLEnvCfg):
         "rl5_joint",
     ]
 
-    # action_scale = 1.0
-    # torque_limit = 3.0
-
-    # rew_scale_alive = 1.0
-    # rew_scale_terminated = -10.0
-    # rew_scale_forward_vel = 2.0
-    # rew_scale_upright = 1.0
-    # rew_scale_joint_vel = -0.001
-    # rew_scale_action_rate = -0.001
-    # rew_scale_energy = -0.0005
-
     base_height_target = 0.25
     min_base_height = 0.10
-    max_base_pitch = 0.7
-    max_base_roll = 0.7
+    max_base_pitch = 1.0
+    max_base_roll = 1.0
 
     # reward scales
-    rew_scale_alive = 0.1           # 너무 크지 않게, 그래도 살아있으면 + 보상
-    rew_scale_terminated = -3.0     # 넘어지면 꽤 큰 음수
+    rew_scale_alive = 1.0       # 너무 크지 않게, 그래도 살아있으면 + 보상
+    rew_scale_terminated = -10.0     # 넘어지면 꽤 큰 음수
     rew_scale_forward_vel = 2.0     # 앞으로 가면 많이 보상
-    rew_scale_upright = 3.0         # 자세 잘 유지하면 꽤 보상
+    rew_scale_upright = 4.0         # 자세 잘 유지하면 꽤 보상
 
     # penalties는 일단 아주 약하게 시작
     rew_scale_joint_vel = -1e-4
     rew_scale_action_rate = -1e-4
-    rew_scale_energy = 0.0          # 처음엔 꺼버려도 됨
+    rew_scale_energy = -0.0005          # 처음엔 꺼버려도 됨
 
-    action_scale = 5.0
-    torque_limit = 5.0
+    action_scale = 0.5
+    torque_limit = 3.0
 
-
-    rew_scale_leg_interference = -0.02   # ✅ 마이너스 보상(패널티)
-    leg_interference_force_threshold = 20.0  # ✅ N 단위(대충 시작값)
+    rew_scale_leg_interference = -0.005   # ✅ 마이너스 보상(패널티)
+    leg_interference_force_threshold = 100.0  # ✅ N 단위(대충 시작값)
 
     scene.left_leg_contact = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/legs/legs/ll.*",
-        filter_prim_paths_expr=["/World/envs/env_.*/legs/legs/rl.*"],
+        prim_path="/World/envs/env_.*/legs/ll(4|5|6)_.*",
+        filter_prim_paths_expr=["/World/envs/env_.*/legs/rl(4|5|6)_.*"],
         update_period=0.0,
         history_length=1,
     )
-
     scene.right_leg_contact = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/legs/legs/rl.*",
-        filter_prim_paths_expr=["/World/envs/env_.*/legs/legs/ll.*"],
+        prim_path="/World/envs/env_.*/legs/rl(4|5|6)_.*",
+        filter_prim_paths_expr=["/World/envs/env_.*/legs/ll(4|5|6)_.*"], #ll.*
         update_period=0.0,
         history_length=1,
     )

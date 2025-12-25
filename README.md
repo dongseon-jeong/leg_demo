@@ -52,7 +52,9 @@ https://github.com/runtimerobotics/fusion360-urdf-ros2
 
 ![이미지](./image/Pasted%20image%2020251129135616.png)
 
-isaacsim에서 urdf import하여 inertial collision friction damping 등 설정하여 usd 저장
+isaacsim에서 urdf import하여 inertial collision friction damping 등 설정하여 usd 저장  
+legs를 default prim 설정  
+collider 등 기본 설정이 잘못되면 학습도 안됨
 
 ![이미지](./image/Pasted%20image%2020251129123345.png)
 
@@ -84,10 +86,12 @@ leg\source\leg\leg\tasks\direct\leg\legs_cfg.py
 LEGS_CFG = ArticulationCfg(
     # ⬇ 최종 스테이지에서 로봇의 prim 경로 패턴
     #    /World/envs/env_0/world/legs, /World/envs/env_1/world/legs, ...
-    prim_path="{ENV_REGEX_NS}/legs",
+    prim_path="/World/envs/env_.*/legs",   # ✅ 동일하게
     spawn=sim_utils.UsdFileCfg(
         # 여긴 그대로 네 USD 파일 경로
-        usd_path=f"D:/making/dynamixel/leg.usd",
+        usd_path=f"D:/making/dynamixel/leg_w.usd",
+        activate_contact_sensors=True,   # ✅ 추가
+        copy_from_source=True,   # ✅ 추가/수정
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=None,
             max_depenetration_velocity=10.0,
@@ -95,12 +99,13 @@ LEGS_CFG = ArticulationCfg(
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=True,
+            fix_root_link=False,   # 반드시 False로
             solver_position_iteration_count=4,
             solver_velocity_iteration_count=0,
             sleep_threshold=0.005,
             stabilization_threshold=0.001,
         ),
-        copy_from_source=False,
+        # copy_from_source=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 0.5),
@@ -137,18 +142,60 @@ leg\source\leg\leg\tasks\direct\leg\leg_env_cfg.py
 - 액션 스페이스 및 보상 등 중요한 환경 요소 수정
 leg\source\leg\leg\tasks\direct\leg\leg_env.py
 
-- 모델 관련
-leg\source\leg\leg\tasks\direct\leg\agents\rsl_rl_ppo_cfg.py
-leg\source\leg\leg\tasks\direct\leg\agents\skrl_amp_cfg.yaml
-leg\source\leg\leg\tasks\direct\leg\agents\skrl_ppo_cfg.yaml
+- 모델 관련  
+leg\source\leg\leg\tasks\direct\leg\agents\rsl_rl_ppo_cfg.py  
+leg\source\leg\leg\tasks\direct\leg\agents\skrl_amp_cfg.yaml  
+leg\source\leg\leg\tasks\direct\leg\agents\skrl_ppo_cfg.yaml  
 
-- 그 외 확인할 것
+- 그 외 확인할 것  
 leg\source\leg\leg\tasks\direct\leg\__init__.py
 leg\scripts\rsl_rl\train.py
 
+- 주요 보상
+```bash
+
+base_height_target = 0.5
+min_base_height = 0.20
+max_base_pitch = 2.5
+max_base_roll = 2.5
+
+# reward scales
+rew_scale_alive = 0.2       # 너무 크지 않게, 그래도 살아있으면 + 보상
+rew_scale_terminated = -1.0     # 넘어지면 꽤 큰 음수
+rew_scale_forward_vel = 0.0     # 앞으로 가면 많이 보상
+rew_scale_upright = 2.0         # 자세 잘 유지하면 꽤 보상
+
+# penalties는 일단 아주 약하게 시작
+rew_scale_joint_vel = -1e-4
+rew_scale_action_rate = -1e-4
+rew_scale_energy = -0.0005          # 처음엔 꺼버려도 됨
+
+action_scale = 1.0
+torque_limit = 3.0
+
+
+rew_scale_leg_interference = -0.2   # 마이너스 보상(패널티)
+leg_interference_force_threshold = 200.0  # N 단위(대충 시작값)
+
+scene.left_leg_contact = ContactSensorCfg(
+    prim_path="/World/envs/env_.*/legs/ll(4|5|6)_.*",
+    filter_prim_paths_expr=["/World/envs/env_.*/legs/rl(4|5|6)_.*"],
+    update_period=0.0,
+    history_length=1,
+)
+scene.right_leg_contact = ContactSensorCfg(
+    prim_path="/World/envs/env_.*/legs/rl(4|5|6)_.*",
+    filter_prim_paths_expr=["/World/envs/env_.*/legs/ll(4|5|6)_.*"],
+    update_period=0.0,
+    history_length=1,
+)
+
+```
+
+
 - 학습 실행
 ```bash
-python scripts/rsl_rl/train.py --task=Template-Leg-Direct-v0 --num_envs=10000 --max_iterations=100000
+python scripts/rsl_rl/train.py --task=Template-Leg-Direct-v0 --num_envs=1000 --max_iterations=10000
 ```
 
 
@@ -156,22 +203,20 @@ python scripts/rsl_rl/train.py --task=Template-Leg-Direct-v0 --num_envs=10000 --
 
 ```d
 ################################################################################
-                       Learning iteration 149/150
+                      Learning iteration 748/10000
 
-                       Computation: 9299 steps/s (collection: 1.526s, learning 0.194s)
-             Mean action noise std: 0.90
-          Mean value_function loss: 9.9457
-               Mean surrogate loss: -0.0034
-                 Mean entropy loss: 15.6270
-                       Mean reward: -11.38
-               Mean episode length: 1.00
+                       Computation: 2228 steps/s (collection: 1.283s, learning 0.153s)
+             Mean action noise std: 0.41
+          Mean value_function loss: 62.6343
+               Mean surrogate loss: -0.0087
+                 Mean entropy loss: 5.4457
+                       Mean reward: 1.85
+               Mean episode length: 6.97
 --------------------------------------------------------------------------------
-                   Total timesteps: 2400000
-                    Iteration time: 1.72s
-                      Time elapsed: 00:04:22
-                               ETA: 00:00:01
-
-[307.600s] Simulation App Shutting Down
+                   Total timesteps: 2396800
+                    Iteration time: 1.44s
+                      Time elapsed: 00:17:08
+                               ETA: 03:31:46
 ```
 
 - 추론
@@ -198,5 +243,5 @@ python scripts/rsl_rl/play.py --task Template-Leg-Direct-v0 --num_envs 1 --check
 # 참고
 https://github.com/ROBOTIS-GIT/ROBOTIS-OP3-Common
 https://www.robotis.com/service/downloadpage.php?ca_id=70
-https://emanual.robotis.com/docs/en/platform/op3/robotis_ros_packages/#robotis-ros-packages
+https://emanual.robotis.com/docs/en/platform/op3/robotis_ros_packages/#robotis-ros-packages  
 https://www.youtube.com/watch?v=tQziqSx-F80&t=1970s

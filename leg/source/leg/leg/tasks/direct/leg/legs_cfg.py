@@ -18,11 +18,12 @@ LEGS_CFG = ArticulationCfg(
         copy_from_source=True,   # ✅ 추가/수정
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=None,
-            max_depenetration_velocity=10.0,
+            max_depenetration_velocity=5.0,
             enable_gyroscopic_forces=True,
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=True,
+            fix_root_link=False,   # ✅ 반드시 False로
             solver_position_iteration_count=4,
             solver_velocity_iteration_count=0,
             sleep_threshold=0.005,
@@ -31,8 +32,9 @@ LEGS_CFG = ArticulationCfg(
         # copy_from_source=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.5),
+        pos=(0.0, 0.0, 0.2),
         joint_pos={".*": 0.0},
+
     ),
     actuators={
         "legs_dxl": ImplicitActuatorCfg(
@@ -50,9 +52,9 @@ LEGS_CFG = ArticulationCfg(
                 "ll5_joint",
                 "rl5_joint",
             ],
-            stiffness={".*": 25.0},
-            damping={".*": 1.0},
-            velocity_limit_sim={".*": 5.0},
+            stiffness={".*": 800.0},
+            damping={".*": 40.0},
+            velocity_limit_sim={".*": 10.0},
         ),
     },
 )
