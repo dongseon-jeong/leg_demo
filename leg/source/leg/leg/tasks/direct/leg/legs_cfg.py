@@ -6,6 +6,9 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+import os
+
+BASE_PATH = os.environ.get("BASE_PATH")
 
 LEGS_CFG = ArticulationCfg(
     # ⬇ 최종 스테이지에서 로봇의 prim 경로 패턴
@@ -13,7 +16,7 @@ LEGS_CFG = ArticulationCfg(
     prim_path="/World/envs/env_.*/legs",   # ✅ 동일하게
     spawn=sim_utils.UsdFileCfg(
         # 여긴 그대로 네 USD 파일 경로
-        usd_path=f"D:/making/dynamixel/leg_w.usd",
+        usd_path=BASE_PATH+"/leg_w.usd",
         activate_contact_sensors=True,   # ✅ 추가
         copy_from_source=True,   # ✅ 추가/수정
         rigid_props=sim_utils.RigidBodyPropertiesCfg(

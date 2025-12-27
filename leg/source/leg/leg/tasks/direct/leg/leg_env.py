@@ -254,6 +254,7 @@ class LegEnv(DirectRLEnv):
         # base_height = base_pos[:, 2]
         base_lin_vel = root_state[:, 7:10]
         base_quat = root_state[:, 3:7]
+        base_ang_vel = root_state[:, 10:13]
 
         tilt_angle = _compute_tilt_from_quat(base_quat)  # [N]
 
@@ -311,7 +312,8 @@ class LegEnv(DirectRLEnv):
             self.cfg.leg_interference_force_threshold,
             leg_interf_max_force,
 
-
+            base_quat,
+            base_ang_vel,
 
             base_lin_vel,
             base_height,
@@ -453,6 +455,29 @@ class LegEnv(DirectRLEnv):
 # Helper & reward functions
 # ------------------------------------------------------------------------- #
 
+# “월드 x” 대신 “로봇 forward”
+@torch.jit.script
+def quat_apply_wxyz(q: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+    # q: [N,4] = (qw,qx,qy,qz), v: [N,3]
+    qw = q[:, 0]
+    qx = q[:, 1]
+    qy = q[:, 2]
+    qz = q[:, 3]
+
+    vx = v[:, 0]
+    vy = v[:, 1]
+    vz = v[:, 2]
+
+    tx = 2.0 * (qy * vz - qz * vy)
+    ty = 2.0 * (qz * vx - qx * vz)
+    tz = 2.0 * (qx * vy - qy * vx)
+
+    vpx = vx + qw * tx + (qy * tz - qz * ty)
+    vpy = vy + qw * ty + (qz * tx - qx * tz)
+    vpz = vz + qw * tz + (qx * ty - qy * tx)
+
+    return torch.stack((vpx, vpy, vpz), dim=1)
+
 
 def _compute_tilt_from_quat(quat_wxyz: torch.Tensor) -> torch.Tensor:
     """quat_wxyz: [N,4] = (qw, qx, qy, qz). Returns tilt angle (0..pi)."""
@@ -485,6 +510,8 @@ def compute_rewards(
     leg_interference_force_threshold: float,
     leg_interf_max_force: torch.Tensor,   # [N]
 
+    base_quat: torch.Tensor,             # [N, 4] (qw,qx,qy,qz)
+    base_ang_vel: torch.Tensor,          # [N, 3]
 
     base_lin_vel: torch.Tensor,      # [N, 3]
     base_height: torch.Tensor,       # [N]
@@ -544,6 +571,34 @@ def compute_rewards(
     rew_energy = rew_scale_energy * torch.sum(torch.abs(joint_torques * joint_vel), dim=1)
 
 
+    # ---------------------------------------------------------
+    # Heading-aware forward / lateral / yaw (robot-frame based)
+    # ---------------------------------------------------------
+    N = base_quat.shape[0]
+
+    axis_x = base_quat.new_zeros((N, 3))
+    axis_y = base_quat.new_zeros((N, 3))
+    axis_z = base_quat.new_zeros((N, 3))
+    axis_x[:, 0] = 1.0
+    axis_y[:, 1] = 1.0
+    axis_z[:, 2] = 1.0
+
+    fwd_w = quat_apply_wxyz(base_quat, axis_x)   # [N,3]
+    lat_w = quat_apply_wxyz(base_quat, axis_y)   # [N,3]
+    up_w  = quat_apply_wxyz(base_quat, axis_z)   # [N,3]
+
+    v_fwd = torch.sum(base_lin_vel * fwd_w, dim=1)       # [N]
+    v_lat = torch.sum(base_lin_vel * lat_w, dim=1)       # [N]
+    yaw_rate = torch.sum(base_ang_vel * up_w, dim=1)     # [N]
+
+    # forward tracking reward (네가 원한 형태)
+    v_cmd = 0.5
+    vel_err = v_fwd - v_cmd
+    rew_vel_track = 2.0 * torch.exp(-2.0 * vel_err * vel_err)
+
+    # crab-walk 억제
+    rew_lat_pen = -1.0 * (v_lat * v_lat)
+    rew_yaw_pen = -0.1 * (yaw_rate * yaw_rate)
 
 
     # ✅ 5) leg interference penalty (continuous)
@@ -557,11 +612,13 @@ def compute_rewards(
         rew_alive
         + rew_termination
         + rew_forward
-        + rew_vel_track      # ✅ 추가
+        + rew_vel_track    
         + rew_upright
         + rew_joint_vel
         + rew_action_rate
         + rew_energy
         + rew_leg_interf
+        + rew_lat_pen
+        + rew_yaw_pen
     )
     return total_reward

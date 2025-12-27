@@ -195,6 +195,9 @@ scene.right_leg_contact = ContactSensorCfg(
 
 - 학습 실행
 ```bash
+# 환경 변수 추가
+export BASE_PATH="복사한경로"
+
 python scripts/rsl_rl/train.py --task=Template-Leg-Direct-v0 --num_envs=1000 --max_iterations=10000
 ```
 

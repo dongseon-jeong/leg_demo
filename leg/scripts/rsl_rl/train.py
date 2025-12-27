@@ -88,7 +88,8 @@ from isaaclab.envs import (
     multi_agent_to_single_agent,
 )
 from isaaclab.utils.dict import print_dict
-from isaaclab.utils.io import dump_pickle, dump_yaml
+from isaaclab.utils.io import dump_yaml #, dump_pickle
+import pickle
 
 from isaaclab_rl.rsl_rl import RslRlBaseRunnerCfg, RslRlVecEnvWrapper
 
@@ -96,8 +97,9 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
+BASE_PATH = os.environ.get("BASE_PATH")
 import sys
-sys.path.append("D:/making/dynamixel/leg/source/leg")
+sys.path.append(BASE_PATH+"/leg/source/leg")
 import leg.tasks  # noqa: F401
 
 torch.backends.cuda.matmul.allow_tf32 = True
@@ -196,8 +198,16 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
-    dump_pickle(os.path.join(log_dir, "params", "env.pkl"), env_cfg)
-    dump_pickle(os.path.join(log_dir, "params", "agent.pkl"), agent_cfg)
+    # dump_pickle(os.path.join(log_dir, "params", "env.pkl"), env_cfg)
+    # dump_pickle(os.path.join(log_dir, "params", "agent.pkl"), agent_cfg)
+    params_dir = os.path.join(log_dir, "params")
+    os.makedirs(params_dir, exist_ok=True)
+
+    with open(os.path.join(params_dir, "env.pkl"), "wb") as f:
+        pickle.dump(env_cfg, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    with open(os.path.join(params_dir, "agent.pkl"), "wb") as f:
+        pickle.dump(agent_cfg, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     # run training
     runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
