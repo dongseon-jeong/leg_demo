@@ -263,19 +263,30 @@ class LegEnv(DirectRLEnv):
         action_rate = self.actions - self.last_actions
 
 
-        if int(self.common_step_counter) % 500 == 0:
-            fwd = base_lin_vel[:, 0]
-            print("[DBG] fwd_vel mean/max:", fwd.mean().item(), fwd.max().item(), flush=True)
 
         if int(self.common_step_counter) % 500 == 0:
+            N = base_quat.shape[0]
+            axis_x = base_quat.new_zeros((N, 3)); axis_x[:,0]=1.0
+            axis_y = base_quat.new_zeros((N, 3)); axis_y[:,1]=1.0
+            fwd_w = quat_apply_wxyz(base_quat, axis_x)
+            lat_w = quat_apply_wxyz(base_quat, axis_y)
+            v_fwd = torch.sum(base_lin_vel * fwd_w, dim=1)
+            v_lat = torch.sum(base_lin_vel * lat_w, dim=1)
+
+            # -x가 정면이면 여기서도 동일하게
+            v_fwd = -v_fwd
+
+            print("[reward DBG] v_fwd mean/max:", v_fwd.mean().item(), v_fwd.max().item(), flush=True)
+            print("[reward DBG] v_lat mean/absmax:", v_lat.mean().item(), v_lat.abs().max().item(), flush=True)
+            print("[reward DBG] linvel world x/y mean:", base_lin_vel[:,0].mean().item(), base_lin_vel[:,1].mean().item(), flush=True)
+
             base_pos = self.robot.data.root_state_w[:, 0:3]
             base_lin_vel = self.robot.data.root_state_w[:, 7:10]
-            print("[DBG] base_x mean/min/max:",
+            print("[reward DBG] base_x mean/min/max:",
                 base_pos[:,0].mean().item(), base_pos[:,0].min().item(), base_pos[:,0].max().item(),
                 flush=True)
-            print("[DBG] linvel_x mean/max:",
-                base_lin_vel[:,0].mean().item(), base_lin_vel[:,0].max().item(),
-                flush=True)
+            print("[reward DBG] v_fwd < 0 ratio:", (v_fwd < 0).float().mean().item(), flush=True)
+            print("[reward DBG] |v_lat| > 0.2 ratio:", (v_lat.abs() > 0.2).float().mean().item(), flush=True)
 
         # ✅ leg-leg interference (use two scene sensors)
         fm_l = self._left_contact.data.force_matrix_w   # [N, L, F, 3] or [N,1,F,3]
@@ -498,29 +509,28 @@ def _compute_tilt_from_quat(quat_wxyz: torch.Tensor) -> torch.Tensor:
 def compute_rewards(
     rew_scale_alive: float,
     rew_scale_terminated: float,
-    rew_scale_forward_vel: float,
+    rew_scale_forward_vel: float,   # ✅ 이제 "전진/방향" 묶음 스케일로 사용
     rew_scale_upright: float,
     rew_scale_joint_vel: float,
     rew_scale_action_rate: float,
     rew_scale_energy: float,
 
-
-    # ✅ 추가
+    # leg interference
     rew_scale_leg_interference: float,
     leg_interference_force_threshold: float,
     leg_interf_max_force: torch.Tensor,   # [N]
 
-    base_quat: torch.Tensor,             # [N, 4] (qw,qx,qy,qz)
-    base_ang_vel: torch.Tensor,          # [N, 3]
+    base_quat: torch.Tensor,              # [N,4] (qw,qx,qy,qz)
+    base_ang_vel: torch.Tensor,           # [N,3]
+    base_lin_vel: torch.Tensor,           # [N,3]
+    base_height: torch.Tensor,            # [N]
+    tilt_angle: torch.Tensor,             # [N]
 
-    base_lin_vel: torch.Tensor,      # [N, 3]
-    base_height: torch.Tensor,       # [N]
-    tilt_angle: torch.Tensor,        # [N]
-    joint_vel: torch.Tensor,         # [N, D]
-    joint_torques: torch.Tensor,     # [N, D]
-    action_rate: torch.Tensor,       # [N, D]
+    joint_vel: torch.Tensor,              # [N,D]
+    joint_torques: torch.Tensor,          # [N,D]
+    action_rate: torch.Tensor,            # [N,D]
     base_height_target: float,
-    reset_terminated: torch.Tensor,  # [N]
+    reset_terminated: torch.Tensor,       # [N]
 ):
     # -----------------------
     # 1) alive / termination
@@ -530,80 +540,77 @@ def compute_rewards(
     rew_termination = rew_scale_terminated * reset_terminated.float()
 
     # -----------------------
-    # 2) forward velocity
-    #    - only reward going forward (backwards -> 0)
+    # 2) Heading-aware velocity (robot-frame)
     # -----------------------
-    forward_vel = base_lin_vel[:, 0]
-    forward_vel_clipped = torch.clamp(forward_vel, 0.0, 3.0)
-    rew_forward = rew_scale_forward_vel * forward_vel_clipped
+    # --- Heading-aware velocity (robot-frame) ---
+    N = base_quat.shape[0]
 
+    axis_x = base_quat.new_zeros((N, 3)); axis_x[:, 0] = 1.0
+    axis_y = base_quat.new_zeros((N, 3)); axis_y[:, 1] = 1.0
+    axis_z = base_quat.new_zeros((N, 3)); axis_z[:, 2] = 1.0
 
-    # -----------------------
-    # 2-b) velocity tracking (commanded speed)
-    # -----------------------
-    v_cmd = 0.5
-    k = 2.0
+    fwd_w = quat_apply_wxyz(base_quat, axis_x)
+    lat_w = quat_apply_wxyz(base_quat, axis_y)
+    up_w  = quat_apply_wxyz(base_quat, axis_z)
 
-    forward_vel = base_lin_vel[:, 0]
-    vel_err = forward_vel - v_cmd
+    v_fwd = torch.sum(base_lin_vel * fwd_w, dim=1)
+    v_lat = torch.sum(base_lin_vel * lat_w, dim=1)
+    yaw_rate = torch.sum(base_ang_vel * up_w, dim=1)
 
-    # baseline = exp(-k * v_cmd^2)  (v=0일 때 err=-v_cmd)
-    baseline = 0.6065306597  # exp(-0.5) when k=2, v_cmd=0.5
+    # 네 로봇 정면이 -X라면
+    forward_sign = -1.0
+    v_fwd = forward_sign * v_fwd
 
-    rew_vel_track = 10.0 * (torch.exp(-k * vel_err * vel_err) - baseline)
-    # -> v=0이면 거의 0, v=v_cmd이면 + (2*(1-baseline)) ≈ +0.787
+    # (A) 전진 자체 보상 (정지면 0)
+    v_fwd_pos = torch.clamp(v_fwd, 0.0, 2.0)
+    rew_fwd = v_fwd_pos  # 0..2
 
+    # (B) 속도 트래킹 보상: "정지 보상" 제거 (baseline subtract)
+    v_cmd = 0.3
+    k = 6.0
+    vel_err = v_fwd - v_cmd
+    track_raw = torch.exp(-k * vel_err * vel_err)              # 0..1
+    baseline  = torch.exp(-k * (v_cmd * v_cmd))                # v_fwd=0일 때 값
+    rew_track = torch.clamp(track_raw - baseline, 0.0, 1.0)    # 정지면 0 근처
+
+    # (C) 헤딩 보상 (원하는 진행 방향이 world -X)
+    goal_dir = base_quat.new_zeros((N, 3)); goal_dir[:, 0] = -1.0
+    heading = torch.sum(fwd_w * goal_dir, dim=1)               # [-1,1]
+    rew_heading = torch.clamp(heading, 0.0, 1.0)
+
+    # (D) 패널티들 (게걸음/뒷걸음 강하게 컷)
+    pen_back = torch.relu(-v_fwd)          # 뒤로가면 +
+    pen_lat  = v_lat * v_lat               # 옆으로 +
+    pen_yaw  = yaw_rate * yaw_rate         # 회전 +
+
+    # ✅ 최종 move 보상 (스케일은 rew_scale_forward_vel로 한 번만)
+    rew_move = rew_scale_forward_vel * (
+        1.0 * rew_fwd
+    + 2.0 * rew_track
+    + 0.5 * rew_heading
+    - 6.0 * pen_back
+    - 4.0 * pen_lat
+    - 0.2 * pen_yaw
+    )
 
     # -----------------------
     # 3) upright reward
-    #    - height near target, tilt small일수록 1에 가까움
     # -----------------------
     height_err = base_height - base_height_target
-    # 아래 계수(5.0, 2.0)는 나중에 튜닝해도 됨
     upright_term = torch.exp(-5.0 * height_err * height_err - 4.0 * tilt_angle * tilt_angle)
     rew_upright = rew_scale_upright * upright_term
 
     # -----------------------
-    # 4) small penalties (very weak)
+    # 4) penalties
     # -----------------------
     rew_joint_vel = rew_scale_joint_vel * torch.sum(joint_vel * joint_vel, dim=1)
     rew_action_rate = rew_scale_action_rate * torch.sum(action_rate * action_rate, dim=1)
     rew_energy = rew_scale_energy * torch.sum(torch.abs(joint_torques * joint_vel), dim=1)
 
-
-    # ---------------------------------------------------------
-    # Heading-aware forward / lateral / yaw (robot-frame based)
-    # ---------------------------------------------------------
-    N = base_quat.shape[0]
-
-    axis_x = base_quat.new_zeros((N, 3))
-    axis_y = base_quat.new_zeros((N, 3))
-    axis_z = base_quat.new_zeros((N, 3))
-    axis_x[:, 0] = 1.0
-    axis_y[:, 1] = 1.0
-    axis_z[:, 2] = 1.0
-
-    fwd_w = quat_apply_wxyz(base_quat, axis_x)   # [N,3]
-    lat_w = quat_apply_wxyz(base_quat, axis_y)   # [N,3]
-    up_w  = quat_apply_wxyz(base_quat, axis_z)   # [N,3]
-
-    v_fwd = torch.sum(base_lin_vel * fwd_w, dim=1)       # [N]
-    v_lat = torch.sum(base_lin_vel * lat_w, dim=1)       # [N]
-    yaw_rate = torch.sum(base_ang_vel * up_w, dim=1)     # [N]
-
-    # forward tracking reward (네가 원한 형태)
-    v_cmd = 0.5
-    vel_err = v_fwd - v_cmd
-    rew_vel_track = 2.0 * torch.exp(-2.0 * vel_err * vel_err)
-
-    # crab-walk 억제
-    rew_lat_pen = -1.0 * (v_lat * v_lat)
-    rew_yaw_pen = -0.1 * (yaw_rate * yaw_rate)
-
-
-    # ✅ 5) leg interference penalty (continuous)
+    # -----------------------
+    # 5) leg interference penalty (continuous)
+    # -----------------------
     excess = torch.clamp(leg_interf_max_force - leg_interference_force_threshold, min=0.0)
-    # ✅ 상한 + 정규화 (수천 N 와도 폭발 금지)
     excess = torch.clamp(excess, max=200.0)
     pen = excess / 200.0
     rew_leg_interf = rew_scale_leg_interference * pen
@@ -611,14 +618,11 @@ def compute_rewards(
     total_reward = (
         rew_alive
         + rew_termination
-        + rew_forward
-        + rew_vel_track    
+        + rew_move
         + rew_upright
         + rew_joint_vel
         + rew_action_rate
         + rew_energy
         + rew_leg_interf
-        + rew_lat_pen
-        + rew_yaw_pen
     )
     return total_reward
