@@ -585,13 +585,19 @@ def compute_rewards(
 
     # ✅ 최종 move 보상 (스케일은 rew_scale_forward_vel로 한 번만)
     rew_move = rew_scale_forward_vel * (
-        1.0 * rew_fwd
+        10.0 * rew_fwd
     + 2.0 * rew_track
     + 0.5 * rew_heading
     - 6.0 * pen_back
     - 4.0 * pen_lat
     - 0.2 * pen_yaw
     )
+
+    # 정지 패널티
+    v_eps = 0.05  # 5cm/s
+    pen_stand = torch.relu(v_eps - v_fwd)  # v_fwd가 v_eps보다 작으면 페널티
+    rew_stand_pen = -1.0 * (pen_stand * pen_stand)  # 제곱 페널티(부드럽게)
+
 
     # -----------------------
     # 3) upright reward
@@ -619,6 +625,7 @@ def compute_rewards(
         rew_alive
         + rew_termination
         + rew_move
+        + rew_stand_pen
         + rew_upright
         + rew_joint_vel
         + rew_action_rate
