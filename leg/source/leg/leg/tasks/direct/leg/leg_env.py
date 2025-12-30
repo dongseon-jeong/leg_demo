@@ -39,12 +39,26 @@ class LegEnv(DirectRLEnv):
         self.last_actions = torch.zeros_like(self.actions)
         self.joint_torques = torch.zeros_like(self.actions)
 
-        # ✅ 추가: cfg에서 만든 센서 2개 핸들 가져오기
+        # 양발 접촉
         self._left_leg_contact = self.scene["left_leg_contact"]
         self._right_leg_contact = self.scene["right_leg_contact"]
 
+        # 스텝(접촉 전이) 계산용 이전 접촉 상태 버퍼
+        self._prev_l_contact = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self._prev_r_contact = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        
         self._low_count  = torch.zeros(self.num_envs, dtype=torch.int32, device=self.device)
         self._tilt_count = torch.zeros(self.num_envs, dtype=torch.int32, device=self.device)
+
+        # env dt (한 step의 실제 시간)
+        self._env_dt = float(self.cfg.sim.dt * self.cfg.decimation)
+
+        # step/air-time buffers
+        self._prev_foot_contact = torch.zeros((self.num_envs, 2), dtype=torch.bool, device=self.device)
+        self._foot_air_time     = torch.zeros((self.num_envs, 2), dtype=torch.float, device=self.device)
+
+        self.last_c_l = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        self.last_c_r = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
     # --------------------------------------------------------------------- #
     # Scene setup
@@ -52,56 +66,13 @@ class LegEnv(DirectRLEnv):
 
     def _setup_scene(self):
         self.robot = Articulation(self.cfg.robot_cfg)
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
+        spawn_ground_plane(prim_path="/World/GroundPlane", cfg=GroundPlaneCfg())
+        # spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
 
         self.scene.clone_environments(copy_from_source=False)
 
-        # ✅ ContactReport API 디버그/강제 적용 (ContactSensor 초기화 전에!)
-        try:
-            import omni.usd
-            from pxr import Usd, UsdPhysics, PhysxSchema
-
-            stage = omni.usd.get_context().get_stage()
-            root_path = "/World/envs/env_0/legs/legs"
-            root = stage.GetPrimAtPath(root_path)
-
-            if not root.IsValid():
-                print(f"[DBG] root not found: {root_path}", flush=True)
-            else:
-                total = 0
-                rigid = 0
-                had = 0
-                applied = 0
-
-                for prim in Usd.PrimRange(root):
-                    total += 1
-                    name = prim.GetName()
-
-                    # ll* / rl* 링크 후보만 대상으로
-                    if not (name.startswith("ll") or name.startswith("rl")):
-                        continue
-
-                    # 1) RigidBodyAPI 있는지
-                    is_rigid = prim.HasAPI(UsdPhysics.RigidBodyAPI)
-                    if is_rigid:
-                        rigid += 1
-
-                    # 2) ContactReportAPI 있는지 / 없으면 apply
-                    if prim.HasAPI(PhysxSchema.PhysxContactReportAPI):
-                        had += 1
-                    else:
-                        # RigidBody가 아니더라도 일단 적용 시도 (Articulation link여도 붙는 경우가 있음)
-                        PhysxSchema.PhysxContactReportAPI.Apply(prim)
-                        applied += 1
-
-                print(
-                    f"[DBG] scanned={total}  rigid={rigid}  had_report={had}  applied_report={applied}  under={root_path}",
-                    flush=True,
-                )
-
-        except Exception as e:
-            print("[DBG] contact report patch failed:", e, flush=True)
-        # ✅ 여기까지 추가
+        self._left_foot_contact  = self.scene.sensors["left_foot_contact"]
+        self._right_foot_contact = self.scene.sensors["right_foot_contact"]
 
         if self.device == "cpu":
             self.scene.filter_collisions(global_prim_paths=[])
@@ -111,8 +82,19 @@ class LegEnv(DirectRLEnv):
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
 
-        print("[DBG] robot prim:", self.cfg.robot_cfg.prim_path, flush=True)
-        print("[DBG] left sensor prim:", self.cfg.scene.left_leg_contact.prim_path, flush=True)
+        # print("[DBG] robot prim:", self.cfg.robot_cfg.prim_path, flush=True)
+        # print("[DBG] left sensor prim:", self.cfg.scene.left_leg_contact.prim_path, flush=True)
+
+        # c_l = _contact_bool(self._left_foot_contact, thresh=5.0)
+        # c_r = _contact_bool(self._right_foot_contact, thresh=5.0)
+        # print("[reward DBG] contact ratio L/R:",
+        #     c_l.float().mean().item(), c_r.float().mean().item(), flush=True)
+
+        # if self.cfg.scene.left_foot_contact is not None:
+        #     ll = sim_utils.find_matching_prims(self.cfg.scene.left_foot_contact.prim_path)
+        #     rl = sim_utils.find_matching_prims(self.cfg.scene.right_foot_contact.prim_path)
+        #     print("[DBG] left_foot prim matches:", len(ll), ll[:5])
+        #     print("[DBG] right_foot prim matches:", len(rl), rl[:5])
 
     # --------------------------------------------------------------------- #
     # RL interface
@@ -262,33 +244,7 @@ class LegEnv(DirectRLEnv):
         torques = self.joint_torques
         action_rate = self.actions - self.last_actions
 
-
-
-        if int(self.common_step_counter) % 500 == 0:
-            N = base_quat.shape[0]
-            axis_x = base_quat.new_zeros((N, 3)); axis_x[:,0]=1.0
-            axis_y = base_quat.new_zeros((N, 3)); axis_y[:,1]=1.0
-            fwd_w = quat_apply_wxyz(base_quat, axis_x)
-            lat_w = quat_apply_wxyz(base_quat, axis_y)
-            v_fwd = torch.sum(base_lin_vel * fwd_w, dim=1)
-            v_lat = torch.sum(base_lin_vel * lat_w, dim=1)
-
-            # -x가 정면이면 여기서도 동일하게
-            v_fwd = -v_fwd
-
-            print("[reward DBG] v_fwd mean/max:", v_fwd.mean().item(), v_fwd.max().item(), flush=True)
-            print("[reward DBG] v_lat mean/absmax:", v_lat.mean().item(), v_lat.abs().max().item(), flush=True)
-            print("[reward DBG] linvel world x/y mean:", base_lin_vel[:,0].mean().item(), base_lin_vel[:,1].mean().item(), flush=True)
-
-            base_pos = self.robot.data.root_state_w[:, 0:3]
-            base_lin_vel = self.robot.data.root_state_w[:, 7:10]
-            print("[reward DBG] base_x mean/min/max:",
-                base_pos[:,0].mean().item(), base_pos[:,0].min().item(), base_pos[:,0].max().item(),
-                flush=True)
-            print("[reward DBG] v_fwd < 0 ratio:", (v_fwd < 0).float().mean().item(), flush=True)
-            print("[reward DBG] |v_lat| > 0.2 ratio:", (v_lat.abs() > 0.2).float().mean().item(), flush=True)
-
-        # ✅ leg-leg interference (use two scene sensors)
+        # leg-leg interference (use two scene sensors)
         fm_l = self._left_contact.data.force_matrix_w   # [N, L, F, 3] or [N,1,F,3]
         fm_r = self._right_contact.data.force_matrix_w
 
@@ -336,8 +292,99 @@ class LegEnv(DirectRLEnv):
             self.reset_terminated,
         )
 
-        total_reward = torch.nan_to_num(total_reward, nan=0.0, posinf=0.0, neginf=0.0)
-        total_reward = torch.clamp(total_reward, -100.0, 100.0)  # 선택
+        # =========================================================
+        # Step reward (air-time) : foot-ground contact 기반
+        # =========================================================
+        def _contact_bool(sensor, thresh: float):
+            nf = sensor.data.net_forces_w
+            if nf is None:
+                return torch.zeros(sensor._num_envs, dtype=torch.bool, device=sensor.device)  # 상황에 맞게 수정
+            # nf: [N,1,3] 또는 [N,3]
+            if nf.dim() == 3:
+                nf0 = nf[:, 0, :]
+            else:
+                nf0 = nf
+            mag = torch.linalg.norm(nf0, dim=-1)  # [N]
+            return mag > thresh
+
+
+        # contact bool
+        c_l = _contact_bool(self._left_foot_contact, thresh=self.cfg.foot_contact_force_th)
+        c_r = _contact_bool(self._right_foot_contact, thresh=self.cfg.foot_contact_force_th)
+
+        # landing = 지금 닿음 & 직전에는 안 닿음
+        landing_l = c_l & (~self.last_c_l)
+        landing_r = c_r & (~self.last_c_r)
+
+        # (옵션) takeoff = 지금 안 닿음 & 직전에는 닿음
+        takeoff_l = (~c_l) & self.last_c_l
+        takeoff_r = (~c_r) & self.last_c_r
+
+        # ✅ step reward: 착지 이벤트에 보상
+        step_scale = 0.2
+        step_rew = step_scale * (landing_l.float() + landing_r.float())
+
+        # ✅ single-support reward: “한쪽 발만 닿는 상태” 선호 (사이드 스텝/미끄러짐 줄이는 데 도움)
+        single_support_scale = 0.02
+        single_support = (c_l ^ c_r)  # XOR
+        single_support_rew = single_support_scale * single_support.float()
+
+        # ✅ double-support penalty(둘 다 닿으면 페널티) — 너무 크면 벌벌 떨 수 있으니 약하게
+        double_support_pen_scale = -0.01
+        double_support = (c_l & c_r)
+        double_support_pen = -2.0 * double_support_pen_scale * double_support.float()
+
+        # reward에 합치기 (compute_rewards 결과에 더해도 됨)
+        total_reward = total_reward + step_rew + single_support_rew + double_support_pen
+
+        # 마지막에 last 업데이트
+        self.last_c_l[:] = c_l
+        self.last_c_r[:] = c_r
+
+        # 디버그
+        if int(self.common_step_counter) % 500 == 0:
+            N = base_quat.shape[0]
+            axis_x = base_quat.new_zeros((N, 3)); axis_x[:,0]=1.0
+            axis_y = base_quat.new_zeros((N, 3)); axis_y[:,1]=1.0
+            fwd_w = quat_apply_wxyz(base_quat, axis_x)
+            lat_w = quat_apply_wxyz(base_quat, axis_y)
+            v_fwd = torch.sum(base_lin_vel * fwd_w, dim=1)
+            v_lat = torch.sum(base_lin_vel * lat_w, dim=1)
+
+            # -x가 정면이면 여기서도 동일하게
+            v_fwd = -v_fwd
+
+            print("[reward DBG] v_fwd mean/max:", v_fwd.mean().item(), v_fwd.max().item(), flush=True)
+            print("[reward DBG] v_lat mean/absmax:", v_lat.mean().item(), v_lat.abs().max().item(), flush=True)
+            print("[reward DBG] linvel world x/y mean:", base_lin_vel[:,0].mean().item(), base_lin_vel[:,1].mean().item(), flush=True)
+
+            base_pos = self.robot.data.root_state_w[:, 0:3]
+            base_lin_vel = self.robot.data.root_state_w[:, 7:10]
+            print("[reward DBG] base_x mean/min/max:",
+                base_pos[:,0].mean().item(), base_pos[:,0].min().item(), base_pos[:,0].max().item(),
+                flush=True)
+            print("[reward DBG] v_fwd < 0 ratio:", (v_fwd < 0).float().mean().item(), flush=True)
+            print("[reward DBG] |v_lat| > 0.2 ratio:", (v_lat.abs() > 0.2).float().mean().item(), flush=True)
+
+            print("[reward DBG] step_rew mean/max:", step_rew.mean().item(), step_rew.max().item(), flush=True)
+
+            for name, s in [("L", self._left_foot_contact), ("R", self._right_foot_contact)]:
+                nf = s.data.net_forces_w
+                if nf is None:
+                    print(f"[DBG] {name} foot net_forces_w: None", flush=True)
+                    continue
+                if nf.dim() == 3:
+                    nf0 = nf[:, 0, :]
+                else:
+                    nf0 = nf
+                mag = torch.linalg.norm(nf0, dim=-1)
+                print(f"[DBG] {name} foot force mag mean/max:", mag.mean().item(), mag.max().item(), flush=True)
+
+            print("[reward DBG] step_rew mean/max:", step_rew.mean().item(), step_rew.max().item(), flush=True)
+            print("[reward DBG] landing ratio L/R:",
+                landing_l.float().mean().item(), landing_r.float().mean().item(), flush=True)
+            print("[reward DBG] contact ratio L/R:",
+                c_l.float().mean().item(), c_r.float().mean().item(), flush=True)
 
         return total_reward
 
@@ -393,32 +440,32 @@ class LegEnv(DirectRLEnv):
         below0 = (base_height < 0.0).float().mean().item()
         belowMin = (base_height < self.cfg.min_base_height).float().mean().item()
 
-        # debug (원하면 유지)
-        if int(self.common_step_counter) % 200 == 0:
-            print("[DONE] low/low_term/tilt/tilt_term/bad:",
-                low.float().mean().item(),
-                low_term.float().mean().item(),
-                tilt.float().mean().item(),
-                tilt_term.float().mean().item(),
-                bad.float().mean().item(),
-                flush=True)
-            print("[DBG] max_tilt:", float(max_tilt),
-                "tilt mean/min/max:",
-                tilt_angle.mean().item(), tilt_angle.min().item(), tilt_angle.max().item(),
-                flush=True)
-            print("[DBG] base_quat mean:", 
-                base_quat.mean(dim=0).tolist(), 
-                flush=True)
-            print(
-                "[DBG] base_height mean/min/max:",
-                base_height.mean().item(),
-                base_height.min().item(),
-                base_height.max().item(),
-                "min_base_height:",
-                float(self.cfg.min_base_height),
-                flush=True,
-            )
-            print(f"[DBG] base_height < 0 ratio: {below0:.4f}, < min_base_height ratio: {belowMin:.4f}", flush=True)
+        # # debug (원하면 유지)
+        # if int(self.common_step_counter) % 200 == 0:
+        #     print("[DONE] low/low_term/tilt/tilt_term/bad:",
+        #         low.float().mean().item(),
+        #         low_term.float().mean().item(),
+        #         tilt.float().mean().item(),
+        #         tilt_term.float().mean().item(),
+        #         bad.float().mean().item(),
+        #         flush=True)
+        #     print("[DBG] max_tilt:", float(max_tilt),
+        #         "tilt mean/min/max:",
+        #         tilt_angle.mean().item(), tilt_angle.min().item(), tilt_angle.max().item(),
+        #         flush=True)
+        #     print("[DBG] base_quat mean:", 
+        #         base_quat.mean(dim=0).tolist(), 
+        #         flush=True)
+        #     print(
+        #         "[DBG] base_height mean/min/max:",
+        #         base_height.mean().item(),
+        #         base_height.min().item(),
+        #         base_height.max().item(),
+        #         "min_base_height:",
+        #         float(self.cfg.min_base_height),
+        #         flush=True,
+        #     )
+        #     print(f"[DBG] base_height < 0 ratio: {below0:.4f}, < min_base_height ratio: {belowMin:.4f}", flush=True)
 
         return fallen, time_out
 
@@ -461,6 +508,13 @@ class LegEnv(DirectRLEnv):
         self.robot.write_root_velocity_to_sim(default_root_state[:, 7:], env_ids)
         self.robot.write_joint_state_to_sim(joint_pos, joint_vel, None, env_ids)
 
+        # airtime
+        self._prev_foot_contact[env_ids] = False
+        self._foot_air_time[env_ids] = 0.0
+
+        # last contact
+        self.last_c_l[env_ids] = False
+        self.last_c_r[env_ids] = False
 
 # ------------------------------------------------------------------------- #
 # Helper & reward functions

@@ -13,12 +13,12 @@ BASE_PATH = os.environ.get("BASE_PATH")
 LEGS_CFG = ArticulationCfg(
     # ⬇ 최종 스테이지에서 로봇의 prim 경로 패턴
     #    /World/envs/env_0/world/legs, /World/envs/env_1/world/legs, ...
-    prim_path="/World/envs/env_.*/legs",   # ✅ 동일하게
+    prim_path="/World/envs/env_.*/legs",   
     spawn=sim_utils.UsdFileCfg(
         # 여긴 그대로 네 USD 파일 경로
         usd_path=BASE_PATH+"/leg_w.usd",
-        activate_contact_sensors=True,   # ✅ 추가
-        copy_from_source=True,   # ✅ 추가/수정
+        activate_contact_sensors=True,   # 추가
+        copy_from_source=True,   # 추가/수정
         rigid_props=sim_utils.RigidBodyPropertiesCfg(
             disable_gravity=None,
             max_depenetration_velocity=5.0,
@@ -26,7 +26,7 @@ LEGS_CFG = ArticulationCfg(
         ),
         articulation_props=sim_utils.ArticulationRootPropertiesCfg(
             enabled_self_collisions=True,
-            fix_root_link=False,   # ✅ 반드시 False로
+            fix_root_link=False,   # 반드시 False로
             solver_position_iteration_count=4,
             solver_velocity_iteration_count=0,
             sleep_threshold=0.005,

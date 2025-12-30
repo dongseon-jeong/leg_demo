@@ -65,9 +65,18 @@ class LegEnvCfg(DirectRLEnvCfg):
     action_scale = 0.5
     torque_limit = 3.0
 
-    rew_scale_leg_interference = -0.005   # ✅ 마이너스 보상(패널티)
-    leg_interference_force_threshold = 100.0  # ✅ N 단위(대충 시작값)
+    rew_scale_leg_interference = -0.005   # 마이너스 보상(패널티)
+    leg_interference_force_threshold = 100.0  # N 단위(대충 시작값)
 
+
+    foot_contact_force_th = 200.0     # N: contact 판정 임계값 (너 환경에 맞게 2~20 사이 조절)
+    air_time_min = 0.06             # s: 너무 짧은 떼기(셔플) 무시
+    air_time_max = 0.30             # s: 너무 긴 점프 보상 과대 방지
+    rew_scale_step = 0.5            # step 보상 스케일 (0.2~2.0 범위에서 튜닝)
+
+
+
+    # 양발 접촉 방지
     scene.left_leg_contact = ContactSensorCfg(
         prim_path="/World/envs/env_.*/legs/ll(4|5|6)_.*",
         filter_prim_paths_expr=["/World/envs/env_.*/legs/rl(4|5|6)_.*"],
@@ -77,6 +86,18 @@ class LegEnvCfg(DirectRLEnvCfg):
     scene.right_leg_contact = ContactSensorCfg(
         prim_path="/World/envs/env_.*/legs/rl(4|5|6)_.*",
         filter_prim_paths_expr=["/World/envs/env_.*/legs/ll(4|5|6)_.*"], #ll.*
+        update_period=0.0,
+        history_length=1,
+    )
+
+    # airtime용
+    scene.left_foot_contact = ContactSensorCfg(
+        prim_path="/World/envs/env_.*/legs/ll6_.*",
+        update_period=0.0,
+        history_length=1,
+    )
+    scene.right_foot_contact = ContactSensorCfg(
+        prim_path="/World/envs/env_.*/legs/rl6_.*",
         update_period=0.0,
         history_length=1,
     )
