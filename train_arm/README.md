@@ -23,6 +23,8 @@ easyEDA 사용
   - 헤드 전압 변경
     - duck converter > xl330(5v) > xl330(5v) 
   - opencr ttl 소켓 3개 로봇양팔,다리,머리로 5개 케이블로 허브를 중간에 둬야함
+  
+![이미지](../image/20260715_205236.jpg)
 
 ## isaacsim sim2real 구현
 - urdf 추출  
@@ -91,14 +93,81 @@ GALLIUM_DRIVER=llvmpipe \
 QT_X11_NO_MITSHM=1 \
 roslaunch moveit_setup_assistant setup_assistant.launch
 ```
-![이미지](../image/213922.png)
+![이미지](../image/213922.png)  
+무브잇으로 엔드이펙터를 움직여 플랜 생성  
 
 curobo or cumotion  
 
-## 오큘러스 teleoperation
-- meta setting  
-[참고](https://developers.meta.com/horizon/documentation/native/android/mobile-device-setup/)  
-- open teach or isaac ros teleop  
+## 오큘러스 teleoperation  
+- isaac teleop  
+  - vr헤드셋에 별도 설치 없이 web 브라우저로 서버 접속하여 데이터 전송  
+  - 현시점 ubuntu 환경에서만 가능  
+  - 아직 윈도우 미지원으로 멀티부팅 우분투 24.04 설치 후 진행  
+
+- isaacsim/lab 가상환경 생성 후 isaacsim 실행(vr을 위한 xr로 진행)
+```
+source env_isaaclab/bin/activate
+source /home/dongseon/.cloudxr/run/cloudxr.env
+export ROS_DISTRO=jazzy
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=1
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/dongseon/env_isaaclab/lib/python3.11/site-packages/isaacsim/exts/isaacsim.ros2.bridge/jazzy/lib
+
+isaacsim \
+  /home/dongseon/env_isaaclab/lib/python3.11/site-packages/isaacsim/apps/isaacsim.exp.base.xr.vr.kit --enable isaacsim.ros2.bridge --enable omni.graph.window.action --enable omni.graph.ui --enable omni.kit.window.script_editor
+```
+- isaacsim 실행 후 arm.usd파일을 열어 플레이 실행  
+액션그래프
+![이미지](../image/21-04-06.png)
+
+
+isaacteleop 가상환경 생성
+```
+cd ~/IsaacTeleop
+source .venv/bin/activate
+
+source /opt/ros/jazzy/setup.bash
+
+export ROS_DISTRO=jazzy
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=1
+
+
+python examples/teleop_ros2/python/teleop_ros2_node.py \
+  --ros-args \
+  -p mode:=controller_teleop \
+  -p rate_hz:=30.0 \
+  -p world_frame:=world \
+  -p accept_eula:=true
+```
+기존 isaacteleop ros 스크립트를 실행한 뒤 메뉴얼과 같이 vr헤드셋 브라우저에서 웹서버를 접속 후 connect  
+[메뉴얼참고](https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html)  
+![alt text](image.png)
+
+
+isaacsim과 teleop서버를 실행 후 토픽리스트를 확인  
+```
+source /opt/ros/jazzy/setup.bash
+
+export ROS_DISTRO=jazzy
+export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+export ROS_DOMAIN_ID=0
+export ROS_LOCALHOST_ONLY=1
+
+ros2 node list
+ros2 topic list
+```
+
+
+isaacsim 스트립트 에디터에서 스크립트를 실행 후 컨트롤러를 움직이면 로봇의 엔드이펙터가 따라움직이는 걸 확인  
+
+![이미지](../image/20-13-48.png)
+
+
+
 - lerobot dataset 변환
 
 ## 합성 데이터 셋 생성

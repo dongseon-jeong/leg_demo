@@ -78,6 +78,7 @@ import torch
 from datetime import datetime
 
 import omni
+import omni.log
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
 from isaaclab.envs import (

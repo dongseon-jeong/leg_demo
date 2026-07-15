@@ -62,12 +62,12 @@ class LegEnv(DirectRLEnv):
         self._low_count = torch.zeros(self.num_envs, dtype=torch.int32, device=self.device)
         self._tilt_count = torch.zeros(self.num_envs, dtype=torch.int32, device=self.device)
 
-        # # foot body ids (exact names)
-        # lf_ids, _ = self.robot.find_bodies("ll6_1")
-        # rf_ids, _ = self.robot.find_bodies("rl6_1")
+        # foot body ids (exact names)
+        lf_ids, _ = self.robot.find_bodies("ll6_1")
+        rf_ids, _ = self.robot.find_bodies("rl6_1")
 
-        # self._lf_body_id = int(lf_ids[0])
-        # self._rf_body_id = int(rf_ids[0])
+        self._lf_body_id = int(lf_ids[0])
+        self._rf_body_id = int(rf_ids[0])
 
         self.prev_base_pos = torch.zeros((self.num_envs, 3), device=self.device)
 
@@ -124,7 +124,8 @@ class LegEnv(DirectRLEnv):
         ).unsqueeze(-1)  # [N,1]
 
         # Default pose for controlled joints
-        q0 = self.robot.data.default_joint_pos[:, self._dof_indices]  # [N,D]
+        # q0 = self.robot.data.default_joint_pos[:, self._dof_indices]  # [N,D]
+        q0 = self.joint_nominal
 
         # action_scale is "radian delta"
         q_target = q0 + (act * float(self.cfg.action_scale)) * ramp
@@ -132,8 +133,8 @@ class LegEnv(DirectRLEnv):
         # Position targets (implicit PD from actuators)
         self.robot.set_joint_position_target(q_target, joint_ids=self._dof_indices)
 
-        # Torque proxy (kept at zero unless you compute/measure real torques)
-        self.joint_torques.zero_()
+        # # Torque proxy (kept at zero unless you compute/measure real torques)
+        # self.joint_torques.zero_()
 
     def _get_observations(self) -> dict:
         # Refresh joint states
@@ -225,14 +226,23 @@ class LegEnv(DirectRLEnv):
         qd = self.joint_vel[:, self._dof_indices]
         action_rate = self.actions - self.last_actions
 
+        self.joint_torques.copy_(
+            self.robot.data.applied_torque[:, self._dof_indices]
+        )
+
         # --- Foot flatness shaping (only when in contact) ---
         bs = self.robot.data.body_state_w
 
         # 다리사이 간격
-        lf_pos = bs[:, 10, 0:3]
-        rf_pos = bs[:, 11, 0:3]
-        # lf_pos = bs[:, self._lf_body_id, 0:3]
-        # rf_pos = bs[:, self._rf_body_id, 0:3]
+        # lf_pos = bs[:, 10, 0:3]
+        # rf_pos = bs[:, 11, 0:3]
+        lf_state = bs[:, self._lf_body_id]
+        rf_state = bs[:, self._rf_body_id]
+
+        lf_pos = lf_state[:, 0:3]
+        rf_pos = rf_state[:, 0:3]
+        lf_quat = lf_state[:, 3:7]
+        rf_quat = rf_state[:, 3:7]
 
         # 다리 높이
         lf_z = lf_pos[:,2]
@@ -255,6 +265,10 @@ class LegEnv(DirectRLEnv):
             r_foot_spacing,
             r_foot_height,
             rew_leg_pose,
+            rew_lateral_vel,
+            rew_vertical_vel,
+            rew_body_ang_vel,
+            rew_foot_flat
         ) = compute_rewards(
             # scales
             float(self.cfg.rew_scale_alive),
@@ -267,6 +281,11 @@ class LegEnv(DirectRLEnv):
             float(self.cfg.rew_vel_track_rate),
             float(self.cfg.rew_fheight_rate),
             float(self.cfg.rew_leg_pose_rate),
+            float(self.cfg.rew_foot_flat_rate),
+            float(self.cfg.rew_lateral_vel_rate),
+            float(self.cfg.rew_vertical_vel_rate),
+            float(self.cfg.rew_body_ang_vel_rate),
+
 
             # robot state tensors
             base_quat,
@@ -284,15 +303,14 @@ class LegEnv(DirectRLEnv):
             float(self.cfg.rew_heading_rate),
             lf_pos,
             rf_pos,
+            lf_quat,
+            rf_quat,
             float(self.cfg.foot_target_width),
             lf_z,
             rf_z,
             float(self.cfg.ground_z),
             float(self.cfg.swing_z),
         )
-
-
-
 
 
         if not hasattr(self, "extras"):
@@ -314,6 +332,10 @@ class LegEnv(DirectRLEnv):
             "rew_foot_spacing": r_foot_spacing.mean(),
             "rew_foot_height": r_foot_height.mean(),
             "rew_leg_pose": rew_leg_pose.mean(),
+            "rew_lateral_vel":rew_lateral_vel.mean(),
+            "rew_vertical_vel":rew_vertical_vel.mean(),
+            "rew_body_ang_vel":rew_body_ang_vel.mean(),
+            "rew_foot_flat":rew_foot_flat.mean(),
 
             # 전체
             "rew_total": total_reward.mean(),
@@ -462,6 +484,10 @@ def compute_rewards(
     rew_vel_track_rate: float,
     rew_fheight_rate: float,
     rew_leg_pose_rate: float,
+    rew_foot_flat_rate:float,
+    rew_lateral_vel_rate:float,
+    rew_vertical_vel_rate:float,
+    rew_body_ang_vel_rate:float,
 
     # robot state
     base_quat: torch.Tensor,            # [N,4] (qw,qx,qy,qz)
@@ -480,13 +506,17 @@ def compute_rewards(
 
     lf_pos: torch.Tensor,
     rf_pos: torch.Tensor,
+    lf_quat: torch.Tensor,
+    rf_quat: torch.Tensor,
     foot_target_width:float,
 
     lf_z: torch.Tensor,
     rf_z: torch.Tensor,
     ground_z:float,
     swing_z:float,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, 
+           torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, 
+           torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
 # ) -> torch.Tensor:
 
     # Alive / termination
@@ -512,12 +542,29 @@ def compute_rewards(
     fwd_true = forward_sign * fwd_w
     v_fwd = torch.sum(base_lin_vel * fwd_true, dim=1)
 
+    # 로봇 좌우 방향 속도
+    v_lat = torch.sum(base_lin_vel * lat_w, dim=1)
+
+    # 옆으로 미끄러지는 움직임 억제
+    rew_lateral_vel = rew_lateral_vel_rate * v_lat * v_lat
+
+    # 월드 수직 속도
+    v_vertical = base_lin_vel[:, 2]
+    rew_vertical_vel = rew_vertical_vel_rate * v_vertical * v_vertical
+
+    roll_rate = torch.sum(base_ang_vel * fwd_w, dim=1)
+    pitch_rate = torch.sum(base_ang_vel * lat_w, dim=1)
+
+    rew_body_ang_vel = rew_body_ang_vel_rate * (
+        roll_rate.square() + pitch_rate.square()
+    )
+
     # Forward reward (clipped)
     rew_forward = rew_scale_forward_vel * torch.clamp(v_fwd, 0.0, 2.0)
 
     # Velocity tracking (gaussian peak at v_cmd, baseline-shifted to ~0 at v=0)
     v_cmd = 0.3# 0.8
-    k = 0.5 # 2.0
+    k = 5.0 # 2.0
     baseline_in = base_quat.new_full((1,), -k * v_cmd * v_cmd)   # [1]
     baseline = torch.exp(baseline_in)[0]                         # scalar tensor
     rew_vel_track = rew_vel_track_rate * (torch.exp(-k * (v_fwd - v_cmd) * (v_fwd - v_cmd)) - baseline)
@@ -532,7 +579,7 @@ def compute_rewards(
     tgt_xy = tgt_xy / (torch.linalg.norm(tgt_xy, dim=1, keepdim=True) + 1e-6)
 
     heading_cos = torch.sum(fwd_xy * tgt_xy, dim=1)
-    rew_heading = rew_heading_rate * torch.clamp(heading_cos, 0.0, 1.0)
+    rew_heading = rew_heading_rate * 0.5 * (heading_cos + 1.0)
 
     # Upright / height stabilization
     height_err = base_height - base_height_target
@@ -556,7 +603,11 @@ def compute_rewards(
     )
 
     # 발 너비
-    foot_width = torch.abs(lf_pos[:, 1] - rf_pos[:, 1])
+    foot_delta = lf_pos - rf_pos
+    foot_width = torch.abs(
+        torch.sum(foot_delta * lat_w, dim=1)
+    )
+
     width_err = foot_width - foot_target_width
     rew_foot_spacing = torch.exp(-50.0 * width_err * width_err)
 
@@ -572,6 +623,21 @@ def compute_rewards(
     rew_rf_height = (1.0-rmix)*rstance + rmix*rswing
     rew_foot_height = rew_fheight_rate*(rew_lf_height +rew_rf_height)
 
+    foot_z_axis = base_quat.new_zeros((N, 3))
+    foot_z_axis[:, 2] = 1.0
+
+    lf_up = quat_apply_wxyz(lf_quat, foot_z_axis)
+    rf_up = quat_apply_wxyz(rf_quat, foot_z_axis)
+
+    lf_ground_weight = torch.exp(-200.0 * (lf_z - ground_z).square())
+    rf_ground_weight = torch.exp(-200.0 * (rf_z - ground_z).square())
+
+    rew_foot_flat = rew_foot_flat_rate * (
+        lf_ground_weight * torch.clamp(lf_up[:, 2], 0.0, 1.0)
+        + rf_ground_weight * torch.clamp(rf_up[:, 2], 0.0, 1.0)
+    )
+
+
     total = (
         rew_alive
         + rew_termination
@@ -585,6 +651,10 @@ def compute_rewards(
         + rew_foot_spacing
         + rew_foot_height
         + rew_leg_pose
+        + rew_lateral_vel
+        + rew_vertical_vel
+        + rew_body_ang_vel
+        + rew_foot_flat
     )
     return (
         total,
@@ -599,5 +669,9 @@ def compute_rewards(
         rew_energy,
         rew_foot_spacing,
         rew_foot_height,
-        rew_leg_pose
+        rew_leg_pose,
+        rew_lateral_vel,
+        rew_vertical_vel,
+        rew_body_ang_vel,
+        rew_foot_flat
     )
