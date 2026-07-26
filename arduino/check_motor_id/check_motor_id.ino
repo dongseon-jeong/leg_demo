@@ -17,7 +17,7 @@ void testBaud(uint32_t baud)
 
   bool found = false;
 
-  for(int id = 0; id < 20; id++)
+  for(int id = 0; id < 30; id++)
   {
     if(dxl.ping(id))
     {

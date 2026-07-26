@@ -82,7 +82,11 @@ AMP, PPO
 
 - usd 파일  
 leg\source\leg\leg\tasks\direct\leg\legs_cfg.py
-
+```d
+stiffness={".*": 5000.0}, # 너무 낮으면 몸의 무게감이 없음, 500이상 추천 
+damping={".*": 10.0}, # 
+velocity_limit_sim={".*": 10.0},
+```
 
 - 기본 환경 설정  
 leg\source\leg\leg\tasks\direct\leg\leg_env_cfg.py
@@ -90,19 +94,64 @@ leg\source\leg\leg\tasks\direct\leg\leg_env_cfg.py
 - 액션 스페이스 및 보상 등 중요한 환경 요소 수정  
 leg\source\leg\leg\tasks\direct\leg\leg_env.py
 
+**기본보상**  
+해당 보상만으로 진행 시 한다리로 지탱하며 앞으로 콩콩 뛰어감  
+```d
+rew_alive # 안넘어지고 살아있으면 보상
+rew_termination # 넘어지면 패널티
+rew_upright # 바디의 높이가 유지되면 보상
+rew_forward # 월드 x방향(로봇의 초기 앞쪽)으로 진행 시 보상, 너무 높으면 걷지 못하고 넘어짐
+rew_vel_track # 원하는 속도에 도달하면 보상
+rew_heading # 몸의 방향과 월드 x방향이 동일할 경우 보상, 없다면 진행 시 시계방향으로 돌아감
+```
+**추가보상1**  
+걷기 모션을 위해 추가, 월드 x방향 직선 보행이 아닌 y방향이 포함된 대각선 보행이 발생
+```d
+rew_foot_spacing # 다리 간격, 없어도 무관할 듯
+rew_foot_height # 발 높이, 발 교대 보상
+rew_foot_flat # 발 평면 유지, 지면이 평평하다는 조건 하
+```
+**추가보상2**  
+```d
+rew_yaw_rate # 몸이 돌아가는 걸 방지, 게걸음으로 진행하는 걸 방지
+rew_lateral_world # y방향 패널티, 게걸음으로 진행하는 걸 방지
+```
+
 - 모델 관련  
 leg\source\leg\leg\tasks\direct\leg\agents\rsl_rl_ppo_cfg.py  
-leg\source\leg\leg\tasks\direct\leg\agents\skrl_amp_cfg.yaml  
-leg\source\leg\leg\tasks\direct\leg\agents\skrl_ppo_cfg.yaml  
+
+학습 초기 보상만을 얻기위한 요령을 터득하는 걸 방지하기 위해 탐색을 좀 더 하도록 수정
+```d
+    policy = RslRlPpoActorCriticCfg(
+        init_noise_std=2.0, # 초기탐색
+        actor_obs_normalization=False,
+        critic_obs_normalization=False,
+        actor_hidden_dims=[32, 32],
+        critic_hidden_dims=[32, 32],
+        activation="elu",
+    )
+    algorithm = RslRlPpoAlgorithmCfg(
+        value_loss_coef=0.5, #
+        use_clipped_value_loss=True,
+        clip_param=0.2,
+        entropy_coef=0.001, # 탐색 더하게
+        num_learning_epochs=5,
+        num_mini_batches=4,
+        learning_rate=2.5e-4, #
+        schedule="adaptive",
+        gamma=0.99,
+        lam=0.95,
+        desired_kl=0.01,
+        max_grad_norm=1.0,
+    )
+```
 
 - 그 외 확인할 것  
-leg\source\leg\leg\tasks\direct\leg\__init__.py
 leg\scripts\rsl_rl\train.py
 
 
 
 - 학습 실행
-다리 사이 간격과 com 위치 속도 등이 보상에 크게 중요하고 학습 시 보상이 더 이상 커지지 않는 경우 파라미터 조정이 필요함
 
 ```bash
 # 환경 변수 추가
@@ -116,25 +165,37 @@ python scripts/rsl_rl/train.py --task=Template-Leg-Direct-v0 --num_envs=1000 --m
 
 ```d
 ################################################################################
-                      Learning iteration 748/10000
+                     Learning iteration 6006/10000
 
-                       Computation: 2228 steps/s (collection: 1.283s, learning 0.153s)
-             Mean action noise std: 0.41
-          Mean value_function loss: 62.6343
-               Mean surrogate loss: -0.0087
-                 Mean entropy loss: 5.4457
-                       Mean reward: 1.85
-               Mean episode length: 6.97
+                       Computation: 782 steps/s (collection: 1.874s, learning 0.171s)
+             Mean action noise std: 1.59
+          Mean value_function loss: 235.4259
+               Mean surrogate loss: -0.0118
+                 Mean entropy loss: 22.2170
+                       Mean reward: 2657.49
+               Mean episode length: 274.92
+            Mean episode rew_alive: 0.2000
+      Mean episode rew_termination: 0.0000
+          Mean episode rew_upright: 0.4077
+          Mean episode rew_forward: 2.5196
+        Mean episode rew_vel_track: 4.9062
+          Mean episode rew_heading: -0.1460
+         Mean episode rew_yaw_rate: -0.0861
+    Mean episode rew_lateral_world: -0.2155
+     Mean episode rew_foot_spacing: 0.0995
+      Mean episode rew_foot_height: 0.6573
+        Mean episode rew_foot_flat: 1.4078
+            Mean episode rew_total: 9.7506
 --------------------------------------------------------------------------------
-                   Total timesteps: 2396800
-                    Iteration time: 1.44s
-                      Time elapsed: 00:17:08
-                               ETA: 03:31:46
+                   Total timesteps: 9611200
+                    Iteration time: 2.04s
+                      Time elapsed: 03:58:10
+                               ETA: 02:38:21
 ```
 
 - 추론
 ```bash
-python scripts/rsl_rl/play.py --task Template-Leg-Direct-v0 --num_envs 20 --checkpoint logs/rsl_rl/leg/model_99999.pt
+python scripts/rsl_rl/play.py --task Template-Leg-Direct-v0 --num_envs 20 --checkpoint logs/rsl_rl/leg/model_9999.pt
 ```
 
 https://github.com/user-attachments/assets/80280dde-8090-4f91-8ec1-0bcc60204a35

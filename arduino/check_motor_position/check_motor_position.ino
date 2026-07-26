@@ -13,15 +13,23 @@ const float DXL_PROTOCOL_VERSION = 2.0;
 const uint32_t BAUDRATE = 57600;
 
 // 총 12개 모터 ID
-const uint8_t IDS[12] = {
+const uint8_t IDS[28] = {
   1, 2, 3, 4, 5, 6,    // 왼발 (lbase, ll1, ll2, ll3, ll4, ll5)
-  7, 8, 9, 10, 11, 12  // 오른발 (rbase, rl1, rl2, rl3, rl4, rl5)
+  7, 8, 9, 10, 11, 12,  // 오른발 (rbase, rl1, rl2, rl3, rl4, rl5)
+  13,14,15,16,17,18,
+  19,20,21,22,23,24,
+  25,26,27,28
 };
 
 // 관절 이름 매핑 (시리얼 모니터 가독성용)
-const char* JOINT_NAMES[12] = {
+const char* JOINT_NAMES[28] = {
   "L-Base", "L-Leg1", "L-Leg2", "L-Leg3", "L-Leg4", "L-Leg5",
-  "R-Base", "R-Leg1", "R-Leg2", "R-Leg3", "R-Leg4", "R-Leg5"
+  "R-Base", "R-Leg1", "R-Leg2", "R-Leg3", "R-Leg4", "R-Leg5",
+  "neck-roll","neck-pitch",
+  "lshd-pitch","lshd-yaw","lshd-roll",
+  "lelbo","lwrist-pitch","lwrist-yaw","lgripper",
+  "rshd-pitch","rshd-yaw","rshd-roll",
+  "relbo","rwrist-pitch","rwrist-yaw","rgripper"
 };
 
 void setup()
@@ -60,7 +68,7 @@ void loop()
 {
   DEBUG_SERIAL.println("\n--- Current Motor Positions (Raw Value) ---");
 
-  for(int i = 0; i < 12; i++)
+  for(int i = 0; i < 28; i++)
   {
     uint8_t id = IDS[i];
     

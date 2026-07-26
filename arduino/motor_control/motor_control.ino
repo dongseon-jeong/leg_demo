@@ -14,22 +14,37 @@ using namespace ControlTableItem;
 const float DXL_PROTOCOL_VERSION = 2.0;
 const uint32_t BAUDRATE = 57600;
 
-const uint8_t IDS[12] = {
+const uint8_t IDS[28] = {
   1, 2, 3, 4, 5, 6,    // 왼발 (1~6)
-  7, 8, 9, 10, 11, 12  // 오른발 (7~12)
+  7, 8, 9, 10, 11, 12,  // 오른발 (7~12)
+  13,14,
+  15,16,17,18,19,20,21,
+  22,23,24,25,26,27,28
 };
 
-int32_t DYNAMIC_CENTER_POS[12] = {0, };
+int32_t DYNAMIC_CENTER_POS[28] = {0, };
 
 
-const float URDF_MIN_RAD[12] = {
+const float URDF_MIN_RAD[28] = {
   -1.57,   -1.57,   -1.57,    0.0,   -0.43, -1.04, // 왼발 (1번: -1.57)
-  0.0,     -0.43,   -0.43,   -1.39,  -1.57, -1.57  // 오른발 (7번: 0.0)
+  0.0,     -0.43,   -0.43,   -1.39,  -1.57, -1.57,  // 오른발 (7번: 0.0)
+  -1.570796,-1.570796,
+  -3.141592,-1.570796,-1.570796,
+  -2.094395,-1.570796,-0.349066,-5.2360,
+  -3.141592,-0.349066,-1.570796,
+  -2.094395,-1.570796,-0.349066,-5.2360
+
 };
 
-const float URDF_MAX_RAD[12] = {
+const float URDF_MAX_RAD[28] = {
   0.0,    0.43,     0.43,     1.39,   1.57,  1.57,  // 왼발 (1번: 0.0)
-  1.57,   1.57,     1.57,     0.0,    0.43,  1.04   // 오른발 (7번: 1.57)
+  1.57,   1.57,     1.57,     0.0,    0.43,  1.04,   // 오른발 (7번: 1.57)
+  1.570796,1.570796,
+  3.141592,0.349066,1.570796,
+  2.094395,1.570796,0.349066,0.8727,
+  3.141592,1.570796,1.570796,
+  2.094395,1.570796,0.349066,0.8727
+
 };
 
 
@@ -90,7 +105,7 @@ void setup()
   dxl.begin(BAUDRATE);
   dxl.setPortProtocolVersion(DXL_PROTOCOL_VERSION);
 
-  for(int i = 0; i < 12; i++) {
+  for(int i = 0; i < 28; i++) {
     uint8_t id = IDS[i];
     if(dxl.ping(id)) {
       DYNAMIC_CENTER_POS[i] = dxl.getPresentPosition(id, UNIT_RAW);
@@ -99,7 +114,7 @@ void setup()
     }
   }
 
-  for(int i = 0; i < 12; i++) {
+  for(int i = 0; i < 28; i++) {
     uint8_t id = IDS[i];
     dxl.torqueOff(id);
     dxl.setOperatingMode(id, OP_EXTENDED_POSITION); 
@@ -224,7 +239,7 @@ void loop()
     if (inputString.length() == 0) return;
 
     if (inputString == "0") {
-      for(int i = 0; i < 12; i++) {
+      for(int i = 0; i < 28; i++) {
         dxl.setGoalPosition(IDS[i], (uint32_t)DYNAMIC_CENTER_POS[i], UNIT_RAW);
       }
       RPI_SERIAL.println("ACK:RESET");
@@ -258,7 +273,7 @@ void loop()
       int targetID = idPart.toInt();
       int32_t offsetInput = offsetPart.toInt();
 
-      if (targetID < 1 || targetID > 12) continue;
+      if (targetID < 1 || targetID > 28) continue;
 
       int idx = targetID - 1;
       int32_t center = DYNAMIC_CENTER_POS[idx];

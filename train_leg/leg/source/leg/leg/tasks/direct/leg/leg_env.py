@@ -248,27 +248,32 @@ class LegEnv(DirectRLEnv):
         lf_z = lf_pos[:,2]
         rf_z = rf_pos[:,2]
 
+        gait_period = 0.8  # second
+        phase = torch.fmod(
+            self.episode_length_buf.float() * (self.cfg.sim.dt * self.cfg.decimation),
+            gait_period,
+        ) / gait_period
+
         # -------------------------
         # Reward
         # -------------------------
         (
             total_reward,
+
             r_alive,
             r_term,
             r_upright,
             r_forward,
             r_vel_track,
             r_heading,
-            r_joint_vel,
-            r_action_rate,
-            r_energy,
+
             r_foot_spacing,
             r_foot_height,
-            rew_leg_pose,
-            rew_lateral_vel,
-            rew_vertical_vel,
-            rew_body_ang_vel,
-            rew_foot_flat
+            rew_foot_flat,
+
+            rew_yaw_rate,
+            rew_lateral_world
+
         ) = compute_rewards(
             # scales
             float(self.cfg.rew_scale_alive),
@@ -282,10 +287,6 @@ class LegEnv(DirectRLEnv):
             float(self.cfg.rew_fheight_rate),
             float(self.cfg.rew_leg_pose_rate),
             float(self.cfg.rew_foot_flat_rate),
-            float(self.cfg.rew_lateral_vel_rate),
-            float(self.cfg.rew_vertical_vel_rate),
-            float(self.cfg.rew_body_ang_vel_rate),
-
 
             # robot state tensors
             base_quat,
@@ -310,6 +311,7 @@ class LegEnv(DirectRLEnv):
             rf_z,
             float(self.cfg.ground_z),
             float(self.cfg.swing_z),
+            phase
         )
 
 
@@ -324,17 +326,11 @@ class LegEnv(DirectRLEnv):
             "rew_forward": r_forward.mean(),
             "rew_vel_track": r_vel_track.mean(),
             "rew_heading": r_heading.mean(),
-
-            "rew_joint_vel": r_joint_vel.mean(),
-            "rew_action_rate": r_action_rate.mean(),
-            "rew_energy": r_energy.mean(),
+            "rew_yaw_rate":rew_yaw_rate.mean(),
+            "rew_lateral_world": rew_lateral_world.mean(),
 
             "rew_foot_spacing": r_foot_spacing.mean(),
             "rew_foot_height": r_foot_height.mean(),
-            "rew_leg_pose": rew_leg_pose.mean(),
-            "rew_lateral_vel":rew_lateral_vel.mean(),
-            "rew_vertical_vel":rew_vertical_vel.mean(),
-            "rew_body_ang_vel":rew_body_ang_vel.mean(),
             "rew_foot_flat":rew_foot_flat.mean(),
 
             # 전체
@@ -485,9 +481,6 @@ def compute_rewards(
     rew_fheight_rate: float,
     rew_leg_pose_rate: float,
     rew_foot_flat_rate:float,
-    rew_lateral_vel_rate:float,
-    rew_vertical_vel_rate:float,
-    rew_body_ang_vel_rate:float,
 
     # robot state
     base_quat: torch.Tensor,            # [N,4] (qw,qx,qy,qz)
@@ -514,9 +507,11 @@ def compute_rewards(
     rf_z: torch.Tensor,
     ground_z:float,
     swing_z:float,
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, 
-           torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, 
-           torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    phase:torch.Tensor
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, 
+           torch.Tensor,torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, 
+           torch.Tensor, torch.Tensor]:
+
 # ) -> torch.Tensor:
 
     # Alive / termination
@@ -541,37 +536,15 @@ def compute_rewards(
     forward_sign = -1.0
     fwd_true = forward_sign * fwd_w
     v_fwd = torch.sum(base_lin_vel * fwd_true, dim=1)
-
-    # 로봇 좌우 방향 속도
-    v_lat = torch.sum(base_lin_vel * lat_w, dim=1)
-
-    # 옆으로 미끄러지는 움직임 억제
-    rew_lateral_vel = rew_lateral_vel_rate * v_lat * v_lat
-
-    # 월드 수직 속도
-    v_vertical = base_lin_vel[:, 2]
-    rew_vertical_vel = rew_vertical_vel_rate * v_vertical * v_vertical
-
-    roll_rate = torch.sum(base_ang_vel * fwd_w, dim=1)
-    pitch_rate = torch.sum(base_ang_vel * lat_w, dim=1)
-
-    rew_body_ang_vel = rew_body_ang_vel_rate * (
-        roll_rate.square() + pitch_rate.square()
-    )
-
+    v_cmd = 0.3 # 0.3
+    v_min = 0.12
     # Forward reward (clipped)
-    rew_forward = rew_scale_forward_vel * torch.clamp(v_fwd, 0.0, 2.0)
-
-    # Velocity tracking (gaussian peak at v_cmd, baseline-shifted to ~0 at v=0)
-    v_cmd = 0.3# 0.8
-    k = 5.0 # 2.0
-    baseline_in = base_quat.new_full((1,), -k * v_cmd * v_cmd)   # [1]
-    baseline = torch.exp(baseline_in)[0]                         # scalar tensor
-    rew_vel_track = rew_vel_track_rate * (torch.exp(-k * (v_fwd - v_cmd) * (v_fwd - v_cmd)) - baseline)
-
-    # Heading alignment to world -X
     target_dir = base_quat.new_zeros((N, 3))
     target_dir[:, 0] = -1.0
+
+    v_fwd_world = torch.sum(base_lin_vel * target_dir, dim=1)
+    v_eff = torch.clamp(v_fwd_world - v_min, 0.0, v_cmd - v_min)
+    rew_forward = rew_scale_forward_vel * v_eff
 
     fwd_xy = fwd_true[:, 0:2]
     tgt_xy = target_dir[:, 0:2]
@@ -579,17 +552,29 @@ def compute_rewards(
     tgt_xy = tgt_xy / (torch.linalg.norm(tgt_xy, dim=1, keepdim=True) + 1e-6)
 
     heading_cos = torch.sum(fwd_xy * tgt_xy, dim=1)
-    rew_heading = rew_heading_rate * 0.5 * (heading_cos + 1.0)
+    rew_heading = rew_heading_rate * (1.0 - heading_cos).square()
+
+    # Velocity tracking (gaussian peak at v_cmd, baseline-shifted to ~0 at v=0)
+    # v_cmd = 0.3 # 0.3
+    k = 30.0 # 2.0 클수록 목표 속도 주변만 좁게 포함
+    track = torch.exp(-k * (v_fwd_world - v_cmd).square())
+    baseline =  torch.exp(base_quat.new_full((), -k * v_cmd * v_cmd))
+
+    rew_vel_track = rew_vel_track_rate * torch.clamp(
+        (track - baseline) / (1.0 - baseline + 1e-6),
+        0.0,
+        1.0,
+    )
 
     # Upright / height stabilization
     height_err = base_height - base_height_target
     upright_term = torch.exp(-5.0 * height_err * height_err - 4.0 * tilt_angle * tilt_angle)
     rew_upright = rew_scale_upright * upright_term
 
-    # Small penalties
-    rew_joint_vel = rew_scale_joint_vel * torch.sum(joint_vel * joint_vel, dim=1)
-    rew_action_rate = rew_scale_action_rate * torch.sum(action_rate * action_rate, dim=1)
-    rew_energy = rew_scale_energy * torch.sum(torch.abs(joint_torques * joint_vel), dim=1)
+    # # Small penalties
+    # rew_joint_vel = rew_scale_joint_vel * torch.sum(joint_vel * joint_vel, dim=1)
+    # rew_action_rate = rew_scale_action_rate * torch.sum(action_rate * action_rate, dim=1)
+    # rew_energy = rew_scale_energy * torch.sum(torch.abs(joint_torques * joint_vel), dim=1)
 
     # ==========================
     # Straight leg penalty
@@ -609,19 +594,25 @@ def compute_rewards(
     )
 
     width_err = foot_width - foot_target_width
-    rew_foot_spacing = torch.exp(-50.0 * width_err * width_err)
+    rew_foot_spacing = 0.1*torch.exp(-0.5 * width_err * width_err)
 
     # 발 높이
-    lstance = torch.exp(-200.0*(lf_z-ground_z)**2)
-    lswing = torch.exp(-100.0*(lf_z-swing_z)**2)
-    # z가 높으면 swing 쪽, 낮으면 stance 쪽
-    lmix = torch.clamp((lf_z-ground_z)/(swing_z-ground_z),0.0,1.0)
-    rew_lf_height = (1.0-lmix)*lstance + lmix*lswing
-    rstance = torch.exp(-200.0*(rf_z-ground_z)**2)
-    rswing = torch.exp(-100.0*(rf_z-swing_z)**2)
-    rmix = torch.clamp((rf_z-ground_z)/(swing_z-ground_z),0.0,1.0)
-    rew_rf_height = (1.0-rmix)*rstance + rmix*rswing
-    rew_foot_height = rew_fheight_rate*(rew_lf_height +rew_rf_height)
+    lstance = torch.exp(-200.0 * (lf_z - ground_z).square())
+    lswing = torch.exp(-100.0 * (lf_z - swing_z).square())
+
+    rstance = torch.exp(-200.0 * (rf_z - ground_z).square())
+    rswing = torch.exp(-100.0 * (rf_z - swing_z).square())
+
+    # phase: [N], 0~1
+    left_stance = phase < 0.5
+
+    rew_gait_height = torch.where(
+        left_stance,
+        lstance * rswing,
+        rstance * lswing,
+    )
+
+    rew_foot_height = rew_fheight_rate * rew_gait_height
 
     foot_z_axis = base_quat.new_zeros((N, 3))
     foot_z_axis[:, 2] = 1.0
@@ -637,6 +628,12 @@ def compute_rewards(
         + rf_ground_weight * torch.clamp(rf_up[:, 2], 0.0, 1.0)
     )
 
+    rew_yaw_rate = -0.3 * base_ang_vel[:, 2].square()
+
+    # 대각선 진행 패널티
+    v_side_world = base_lin_vel[:, 1]
+    rew_lateral_world =  -10.0 * v_side_world.square()
+
 
     total = (
         rew_alive
@@ -645,33 +642,29 @@ def compute_rewards(
         + rew_forward
         + rew_vel_track
         + rew_heading
-        + rew_joint_vel
-        + rew_action_rate
-        + rew_energy
         + rew_foot_spacing
         + rew_foot_height
-        + rew_leg_pose
-        + rew_lateral_vel
-        + rew_vertical_vel
-        + rew_body_ang_vel
         + rew_foot_flat
+        + rew_yaw_rate
+        + rew_lateral_world
+
     )
     return (
         total,
+
         rew_alive,
         rew_termination,
         rew_upright,
+
         rew_forward,
         rew_vel_track,
         rew_heading,
-        rew_joint_vel,
-        rew_action_rate,
-        rew_energy,
+
         rew_foot_spacing,
         rew_foot_height,
-        rew_leg_pose,
-        rew_lateral_vel,
-        rew_vertical_vel,
-        rew_body_ang_vel,
-        rew_foot_flat
+        rew_foot_flat,
+
+        rew_yaw_rate,
+        rew_lateral_world,
+
     )
