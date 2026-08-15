@@ -81,6 +81,13 @@ class LegEnv(DirectRLEnv):
             device=self.device
         )
 
+        self._q_log_counter = 0
+
+        self.lf_z_sum = torch.zeros(self.num_envs, device=self.device)
+        self.rf_z_sum = torch.zeros(self.num_envs, device=self.device)
+        self.z_count = torch.zeros(self.num_envs, device=self.device)
+        self.phase_offset = torch.zeros(self.num_envs, device=self.device)
+
     # ---------------------------------------------------------------------
     # Scene
     # ---------------------------------------------------------------------
@@ -175,8 +182,22 @@ class LegEnv(DirectRLEnv):
         # Extra scalars
         forward_vel = base_lin_vel[:, 0].unsqueeze(-1)
         height_err = (base_height - float(self.cfg.base_height_target)).unsqueeze(-1)
-        x_pos = base_pos[:, 0].unsqueeze(-1)
-        y_pos = base_pos[:, 1].unsqueeze(-1)
+        # x_pos = base_pos[:, 0].unsqueeze(-1)
+        # y_pos = base_pos[:, 1].unsqueeze(-1)
+
+
+
+        gait_period = float(self.cfg.gait_period)
+        phase = torch.fmod(
+            self.episode_length_buf.float() * (self.cfg.sim.dt * self.cfg.decimation) / gait_period
+            + self.phase_offset,
+            1.0,
+        )
+
+        phase_sin = torch.sin(2.0 * torch.pi * phase).unsqueeze(-1)
+        phase_cos = torch.cos(2.0 * torch.pi * phase).unsqueeze(-1)
+
+
 
         obs = torch.cat(
             (
@@ -188,9 +209,11 @@ class LegEnv(DirectRLEnv):
                 tilt_angle.unsqueeze(-1),   # 1
                 last_act,                # D
                 forward_vel,             # 1
-                x_pos,                   # 1
-                y_pos,                   # 1
+                # x_pos,                   # 1
+                # y_pos,                   # 1
                 height_err,              # 1
+                phase_sin,
+                phase_cos,
             ),
             dim=-1,
         )
@@ -206,10 +229,10 @@ class LegEnv(DirectRLEnv):
         self.joint_vel = self.robot.data.joint_vel
 
         root_state = self.robot.data.root_state_w
-        base_pos = root_state[:, 0:3]
-        base_quat = root_state[:, 3:7]     # expected (qw,qx,qy,qz)
-        base_lin_vel = root_state[:, 7:10]
-        base_ang_vel = root_state[:, 10:13]
+        base_pos = root_state[:, 0:3] # position world
+        base_quat = root_state[:, 3:7]     # quaternion (qw,qx,qy,qz)
+        base_lin_vel = root_state[:, 7:10] # linear velocity world
+        base_ang_vel = root_state[:, 10:13] # angular velocity world
  
 
         # Prefer COM height if available
@@ -239,20 +262,33 @@ class LegEnv(DirectRLEnv):
         lf_state = bs[:, self._lf_body_id]
         rf_state = bs[:, self._rf_body_id]
 
-        lf_pos = lf_state[:, 0:3]
+        lf_pos = lf_state[:, 0:3] # position world
         rf_pos = rf_state[:, 0:3]
-        lf_quat = lf_state[:, 3:7]
+        lf_quat = lf_state[:, 3:7] # quaternion world
         rf_quat = rf_state[:, 3:7]
+
+
+        lf_vel = bs[:, self._lf_body_id, 7:10] # linear velocity world
+        rf_vel = bs[:, self._rf_body_id, 7:10]
+
 
         # 다리 높이
         lf_z = lf_pos[:,2]
         rf_z = rf_pos[:,2]
 
-        gait_period = 0.8  # second
+        self.lf_z_sum += lf_z.detach()
+        self.rf_z_sum += rf_z.detach()
+        self.z_count += 1.0
+
+        lf_z_avg = self.lf_z_sum / torch.clamp(self.z_count, min=1.0)
+        rf_z_avg = self.rf_z_sum / torch.clamp(self.z_count, min=1.0)
+
+        gait_period = float(self.cfg.gait_period)
         phase = torch.fmod(
-            self.episode_length_buf.float() * (self.cfg.sim.dt * self.cfg.decimation),
-            gait_period,
-        ) / gait_period
+            self.episode_length_buf.float() * (self.cfg.sim.dt * self.cfg.decimation) / gait_period
+            + self.phase_offset,
+            1.0,
+        )
 
         # -------------------------
         # Reward
@@ -267,12 +303,20 @@ class LegEnv(DirectRLEnv):
             r_vel_track,
             r_heading,
 
-            r_foot_spacing,
+            # r_foot_spacing,
             r_foot_height,
-            rew_foot_flat,
+            # rew_foot_flat,
+            # rew_foot_vel,
+            # rew_swing_forward,
+            # rew_stance_under_body,
+
 
             rew_yaw_rate,
-            rew_lateral_world
+            rew_lateral_world,
+            # rew_joint_vel,
+            # rew_action_rate,
+            # rew_gait_height_penalty,
+            rew_foot_height_usage_balance
 
         ) = compute_rewards(
             # scales
@@ -289,6 +333,7 @@ class LegEnv(DirectRLEnv):
             float(self.cfg.rew_foot_flat_rate),
 
             # robot state tensors
+            base_pos,
             base_quat,
             base_ang_vel,
             base_lin_vel,
@@ -309,9 +354,13 @@ class LegEnv(DirectRLEnv):
             float(self.cfg.foot_target_width),
             lf_z,
             rf_z,
+            lf_z_avg,
+            rf_z_avg,
             float(self.cfg.ground_z),
             float(self.cfg.swing_z),
-            phase
+            phase,
+            lf_vel,
+            rf_vel
         )
 
 
@@ -329,15 +378,34 @@ class LegEnv(DirectRLEnv):
             "rew_yaw_rate":rew_yaw_rate.mean(),
             "rew_lateral_world": rew_lateral_world.mean(),
 
-            "rew_foot_spacing": r_foot_spacing.mean(),
+            # "rew_foot_spacing": r_foot_spacing.mean(),
             "rew_foot_height": r_foot_height.mean(),
-            "rew_foot_flat":rew_foot_flat.mean(),
+            # "rew_foot_flat":rew_foot_flat.mean(),
+            # "rew_foot_vel":rew_foot_vel.mean(),
+            # "rew_swing_forward":rew_swing_forward.mean(),
+            # "rew_stance_under_body":rew_stance_under_body.mean(),
+
+            # "rew_joint_vel":rew_joint_vel.mean(),
+            # "rew_action_rate":rew_action_rate.mean(),
+            # "rew_gait_height_penalty":rew_gait_height_penalty.mean(),
+            "rew_foot_height_usage_balance":rew_foot_height_usage_balance.mean(),
 
             # 전체
             "rew_total": total_reward.mean(),
         }
-
-
+        self._q_log_counter += 1
+        if self._q_log_counter % 500 == 0:
+            print("lf_body_id:", self._lf_body_id, "rf_body_id:", self._rf_body_id)
+            print("lf_z mean/min/max:",
+                lf_z.mean().detach().cpu().item(),
+                lf_z.min().detach().cpu().item(),
+                lf_z.max().detach().cpu().item(),
+            )
+            print("rf_z mean/min/max:",
+                rf_z.mean().detach().cpu().item(),
+                rf_z.min().detach().cpu().item(),
+                rf_z.max().detach().cpu().item(),
+            )
 
 
         return total_reward
@@ -427,6 +495,11 @@ class LegEnv(DirectRLEnv):
             torch.randn((len(env_ids),3),device=self.device)*0.005
         )
 
+        self.lf_z_sum[env_ids] = 0.0
+        self.rf_z_sum[env_ids] = 0.0
+        self.z_count[env_ids] = 0.0
+        self.phase_offset[env_ids] = torch.rand(len(env_ids), device=self.device)
+
 # =============================================================================
 # Helpers (TorchScript-safe where it matters)
 # =============================================================================
@@ -483,6 +556,7 @@ def compute_rewards(
     rew_foot_flat_rate:float,
 
     # robot state
+    base_pos: torch.Tensor,
     base_quat: torch.Tensor,            # [N,4] (qw,qx,qy,qz)
     base_ang_vel: torch.Tensor,         # [N,3]
     base_lin_vel: torch.Tensor,         # [N,3]
@@ -505,12 +579,15 @@ def compute_rewards(
 
     lf_z: torch.Tensor,
     rf_z: torch.Tensor,
+    lf_z_avg: torch.Tensor,
+    rf_z_avg: torch.Tensor,
     ground_z:float,
     swing_z:float,
-    phase:torch.Tensor
+    phase:torch.Tensor,
+    lf_vel:torch.Tensor,
+    rf_vel:torch.Tensor
 ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, 
-           torch.Tensor,torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, 
-           torch.Tensor, torch.Tensor]:
+           torch.Tensor,torch.Tensor,torch.Tensor,torch.Tensor,torch.Tensor,torch.Tensor]:
 
 # ) -> torch.Tensor:
 
@@ -536,8 +613,8 @@ def compute_rewards(
     forward_sign = -1.0
     fwd_true = forward_sign * fwd_w
     v_fwd = torch.sum(base_lin_vel * fwd_true, dim=1)
-    v_cmd = 0.3 # 0.3
-    v_min = 0.12
+    v_cmd = 0.18 # 0.2
+    v_min = 0.04
     # Forward reward (clipped)
     target_dir = base_quat.new_zeros((N, 3))
     target_dir[:, 0] = -1.0
@@ -556,7 +633,7 @@ def compute_rewards(
 
     # Velocity tracking (gaussian peak at v_cmd, baseline-shifted to ~0 at v=0)
     # v_cmd = 0.3 # 0.3
-    k = 30.0 # 2.0 클수록 목표 속도 주변만 좁게 포함
+    k = 40.0 # 2.0 클수록 목표 속도 주변만 좁게 포함
     track = torch.exp(-k * (v_fwd_world - v_cmd).square())
     baseline =  torch.exp(base_quat.new_full((), -k * v_cmd * v_cmd))
 
@@ -571,10 +648,10 @@ def compute_rewards(
     upright_term = torch.exp(-5.0 * height_err * height_err - 4.0 * tilt_angle * tilt_angle)
     rew_upright = rew_scale_upright * upright_term
 
-    # # Small penalties
-    # rew_joint_vel = rew_scale_joint_vel * torch.sum(joint_vel * joint_vel, dim=1)
-    # rew_action_rate = rew_scale_action_rate * torch.sum(action_rate * action_rate, dim=1)
-    # rew_energy = rew_scale_energy * torch.sum(torch.abs(joint_torques * joint_vel), dim=1)
+    # Small penalties 잔발 억제 / 값은 작게, 크면 걷기를 방해함
+    rew_joint_vel = rew_scale_joint_vel * torch.sum(joint_vel * joint_vel, dim=1)
+    rew_action_rate = rew_scale_action_rate * torch.sum(action_rate * action_rate, dim=1)
+    rew_energy = rew_scale_energy * torch.sum(torch.abs(joint_torques * joint_vel), dim=1)
 
     # ==========================
     # Straight leg penalty
@@ -597,20 +674,26 @@ def compute_rewards(
     rew_foot_spacing = 0.1*torch.exp(-0.5 * width_err * width_err)
 
     # 발 높이
-    lstance = torch.exp(-200.0 * (lf_z - ground_z).square())
-    lswing = torch.exp(-100.0 * (lf_z - swing_z).square())
-
-    rstance = torch.exp(-200.0 * (rf_z - ground_z).square())
-    rswing = torch.exp(-100.0 * (rf_z - swing_z).square())
-
-    # phase: [N], 0~1
+    stance_sigma = 0.015
+    swing_sigma = 0.030
     left_stance = phase < 0.5
 
-    rew_gait_height = torch.where(
-        left_stance,
-        lstance * rswing,
-        rstance * lswing,
+    stance_z = torch.where(left_stance, lf_z, rf_z)
+    swing_z_now = torch.where(left_stance, rf_z, lf_z)
+
+    stance_err = stance_z - ground_z
+    swing_err = swing_z_now - swing_z
+
+    rew_gait_height = rew_fheight_rate * (
+        torch.exp(-((stance_err) / stance_sigma).square())
+        * torch.exp(-((swing_err) / swing_sigma).square())
     )
+
+    # rew_gait_height_penalty = -100.0 * (
+    #     stance_err.square() + swing_err.square()
+    # )
+
+    rew_foot_height_usage_balance = -2.0 * (100.0 * (lf_z_avg - rf_z_avg)).square()
 
     rew_foot_height = rew_fheight_rate * rew_gait_height
 
@@ -620,13 +703,65 @@ def compute_rewards(
     lf_up = quat_apply_wxyz(lf_quat, foot_z_axis)
     rf_up = quat_apply_wxyz(rf_quat, foot_z_axis)
 
-    lf_ground_weight = torch.exp(-200.0 * (lf_z - ground_z).square())
-    rf_ground_weight = torch.exp(-200.0 * (rf_z - ground_z).square())
+    # lf_ground_weight = torch.exp(-200.0 * (lf_z - ground_z).square())
+    # rf_ground_weight = torch.exp(-200.0 * (rf_z - ground_z).square())
 
-    rew_foot_flat = rew_foot_flat_rate * (
-        lf_ground_weight * torch.clamp(lf_up[:, 2], 0.0, 1.0)
-        + rf_ground_weight * torch.clamp(rf_up[:, 2], 0.0, 1.0)
+    # rew_foot_flat = rew_foot_flat_rate * (
+    #     lf_ground_weight * torch.clamp(lf_up[:, 2], 0.0, 1.0)
+    #     + rf_ground_weight * torch.clamp(rf_up[:, 2], 0.0, 1.0)
+    # )
+
+    lstance = torch.exp(-((lf_z - ground_z) / stance_sigma).square())
+    rstance = torch.exp(-((rf_z - ground_z) / stance_sigma).square())
+
+    lf_flat = torch.clamp(lf_up[:, 2], 0.0, 1.0)
+    rf_flat = torch.clamp(rf_up[:, 2], 0.0, 1.0)
+
+    rew_foot_flat = rew_foot_flat_rate * torch.where(
+        left_stance,
+        lstance * lf_flat,
+        rstance * rf_flat,
     )
+
+
+
+
+    lf_rel = lf_pos - base_pos
+    rf_rel = rf_pos - base_pos
+
+    lf_forward = torch.sum(lf_rel * fwd_true, dim=1)
+    rf_forward = torch.sum(rf_rel * fwd_true, dim=1)
+
+
+    step_target = 0.06  # 6cm부터
+
+
+    swing_forward = torch.where(
+        left_stance,
+        rf_forward,  # 왼발 stance면 오른발 swing
+        lf_forward,  # 오른발 stance면 왼발 swing
+    )
+
+    rew_swing_forward = 1.5 * torch.exp(
+        -20.0 * (swing_forward - step_target).square() # 20 클수록 목표 주변을 좁게 인정
+    )
+
+    stance_forward = torch.where(
+        left_stance,
+        lf_forward,
+        rf_forward,
+    )
+
+    rew_stance_under_body = -2.0 * torch.clamp(-stance_forward - 0.04, 0.0, 1.0).square()
+
+
+
+
+    lf_slip = torch.sum(lf_vel[:, 0:2].square(), dim=1)
+    rf_slip = torch.sum(rf_vel[:, 0:2].square(), dim=1)
+
+    stance_slip = torch.where(left_stance, lf_slip, rf_slip)
+    rew_foot_vel = -0.3 * stance_slip
 
     rew_yaw_rate = -0.3 * base_ang_vel[:, 2].square()
 
@@ -635,6 +770,12 @@ def compute_rewards(
     rew_lateral_world =  -10.0 * v_side_world.square()
 
 
+    # 게이트 품질에 따른 보상
+    gait_quality = rew_gait_height  # 0~1 근처
+
+    rew_vel_track = rew_vel_track * gait_quality #(0.5 + 0.5 * gait_quality)
+    rew_forward = rew_forward * gait_quality #(0.7 + 0.3 * gait_quality)
+
     total = (
         rew_alive
         + rew_termination
@@ -642,11 +783,18 @@ def compute_rewards(
         + rew_forward
         + rew_vel_track
         + rew_heading
-        + rew_foot_spacing
+        # + rew_foot_spacing
         + rew_foot_height
-        + rew_foot_flat
+        # + rew_foot_flat
+        # + rew_foot_vel
+        # + rew_swing_forward
+        # + rew_stance_under_body
         + rew_yaw_rate
         + rew_lateral_world
+        # + rew_joint_vel
+        # + rew_action_rate
+        # + rew_gait_height_penalty
+        + rew_foot_height_usage_balance
 
     )
     return (
@@ -660,11 +808,17 @@ def compute_rewards(
         rew_vel_track,
         rew_heading,
 
-        rew_foot_spacing,
+        # rew_foot_spacing,
         rew_foot_height,
-        rew_foot_flat,
+        # rew_foot_flat,
+        # rew_foot_vel,
+        # rew_swing_forward,
+        # rew_stance_under_body,
 
         rew_yaw_rate,
         rew_lateral_world,
-
+        # rew_joint_vel,
+        # rew_action_rate,
+        # rew_gait_height_penalty,
+        rew_foot_height_usage_balance
     )

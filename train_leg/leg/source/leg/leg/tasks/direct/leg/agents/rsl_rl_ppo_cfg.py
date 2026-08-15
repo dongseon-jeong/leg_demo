@@ -15,7 +15,7 @@ class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
     save_interval = 1000
     experiment_name = "leg"
     policy = RslRlPpoActorCriticCfg(
-        init_noise_std=2.0, # 초기탐색
+        init_noise_std=0.8, # 초기탐색
         actor_obs_normalization=False,
         critic_obs_normalization=False,
         actor_hidden_dims=[32, 32],
@@ -26,7 +26,7 @@ class PPORunnerCfg(RslRlOnPolicyRunnerCfg):
         value_loss_coef=0.5, #
         use_clipped_value_loss=True,
         clip_param=0.2,
-        entropy_coef=0.001, # 탐색 더하게
+        entropy_coef=0.0001, # 높이면 탐색 더하게
         num_learning_epochs=5,
         num_mini_batches=4,
         learning_rate=2.5e-4, #

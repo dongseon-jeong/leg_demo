@@ -211,6 +211,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         pickle.dump(agent_cfg, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     # run training
+    runner.git_status_repos = [] # 깃 우회
     runner.learn(num_learning_iterations=agent_cfg.max_iterations, init_at_random_ep_len=True)
 
     # close the simulator
