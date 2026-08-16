@@ -151,13 +151,13 @@ leg\scripts\rsl_rl\train.py
 
 
 
-- 학습 실행
-
+- 학습 실행  
+3080 pc 약 1시간 소요
 ```bash
 # 환경 변수 추가
 export BASE_PATH="복사한경로"
 
-python scripts/rsl_rl/train.py --task=Template-Leg-Direct-v0 --num_envs=1000 --max_iterations=10000
+python scripts/rsl_rl/train.py --task=Template-Leg-Direct-v0 --num_envs=200 --max_iterations=5000
 ```
 
 
@@ -206,10 +206,16 @@ python scripts/rsl_rl/train.py --task=Template-Leg-Direct-v0 --num_envs=1000 --m
 
 - 추론
 ```bash
-python scripts/rsl_rl/play.py --task Template-Leg-Direct-v0 --num_envs 20 --checkpoint logs/rsl_rl/leg/model_9999.pt
+$env:BASE_PATH="{$project_path}/train_leg"
+cd {$project_path}/train_leg/leg
+python scripts/rsl_rl/play.py --task Template-Leg-Direct-v0 --num_envs 20 --checkpoint ./model_4999.pt
 ```
 
-https://github.com/user-attachments/assets/80280dde-8090-4f91-8ec1-0bcc60204a35
+
+
+https://github.com/user-attachments/assets/a8d00207-1886-4957-bb30-7761e3211d93
+
+
 
 
 ## 3d 프린팅 조립
