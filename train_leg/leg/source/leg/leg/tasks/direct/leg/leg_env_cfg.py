@@ -45,12 +45,12 @@ class LegEnvCfg(DirectRLEnvCfg):
         "ll5_joint",
         "rl5_joint",
     ]
-    gait_period = 1.0
+    gait_period = 0.5
     action_scale = 0.3
     torque_limit = 8.0
 
     # 베이스 높이
-    base_height_target = 0.16
+    base_height_target = 0.16 # 0.16
     min_base_height = 0.10
     max_base_pitch = 1.0
     max_base_roll = 1.0
@@ -59,8 +59,8 @@ class LegEnvCfg(DirectRLEnvCfg):
     rew_scale_alive = 0.2      # 1.0 너무 크지 않게, 그래도 살아있으면 + 보상
     rew_scale_terminated = -5.0     # -10 넘어지면 꽤 큰 음수
     rew_scale_upright = 0.5         # 3 자세 잘 유지하면 꽤 보상
-    rew_scale_forward_vel = 12.0     #25 앞으로 가면 많이 보상
-    rew_vel_track_rate = 8.0 # 5 속도 증가
+    rew_scale_forward_vel = 15.0     #25 앞으로 가면 많이 보상
+    rew_vel_track_rate = 4.0 # 5 속도 증가
     rew_heading_rate = -8.0  #  15.0
 
     # penalties는 일단 아주 약하게 시작
@@ -79,32 +79,32 @@ class LegEnvCfg(DirectRLEnvCfg):
     rew_fheight_rate = 2.0 #0.25
     rew_foot_flat_rate = 0.5 #0.5
 
-    # ---- 접촉 센서는 미사용
-    GROUND_FILTER = ["/World/GroundPlane/GroundPlane/CollisionPlane"]
+    # # ---- 접촉 센서는 미사용
+    # GROUND_FILTER = ["/World/GroundPlane/GroundPlane/CollisionPlane"]
 
-    scene.left_foot_contact = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/legs/ll6_.*",
-        filter_prim_paths_expr=GROUND_FILTER,   # 추가
-        update_period=0.0,
-        history_length=1,
-    )
-    scene.right_foot_contact = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/legs/rl6_.*",
-        filter_prim_paths_expr=GROUND_FILTER,   # 추가
-        update_period=0.0,
-        history_length=1,
-    )
+    # scene.left_foot_contact = ContactSensorCfg(
+    #     prim_path="/World/envs/env_.*/legs/ll6_.*",
+    #     filter_prim_paths_expr=GROUND_FILTER,   # 추가
+    #     update_period=0.0,
+    #     history_length=1,
+    # )
+    # scene.right_foot_contact = ContactSensorCfg(
+    #     prim_path="/World/envs/env_.*/legs/rl6_.*",
+    #     filter_prim_paths_expr=GROUND_FILTER,   # 추가
+    #     update_period=0.0,
+    #     history_length=1,
+    # )
 
-    # ---- 발 간섭 ----
-    scene.left_leg_contact = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/legs/ll(4|5|6)_.*",
-        filter_prim_paths_expr=["/World/envs/env_.*/legs/rl(4|5|6)_.*"],
-        update_period=0.0,
-        history_length=1,
-    )
-    scene.right_leg_contact = ContactSensorCfg(
-        prim_path="/World/envs/env_.*/legs/rl(4|5|6)_.*",
-        filter_prim_paths_expr=["/World/envs/env_.*/legs/ll(4|5|6)_.*"], #ll.*
-        update_period=0.0,
-        history_length=1,
-    )
+    # # ---- 발 간섭 ----
+    # scene.left_leg_contact = ContactSensorCfg(
+    #     prim_path="/World/envs/env_.*/legs/ll(4|5|6)_.*",
+    #     filter_prim_paths_expr=["/World/envs/env_.*/legs/rl(4|5|6)_.*"],
+    #     update_period=0.0,
+    #     history_length=1,
+    # )
+    # scene.right_leg_contact = ContactSensorCfg(
+    #     prim_path="/World/envs/env_.*/legs/rl(4|5|6)_.*",
+    #     filter_prim_paths_expr=["/World/envs/env_.*/legs/ll(4|5|6)_.*"], #ll.*
+    #     update_period=0.0,
+    #     history_length=1,
+    # )

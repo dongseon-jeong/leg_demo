@@ -5,4 +5,3 @@ rasberrypi/catkin_ws/build/
 rasberrypi/catkin_ws/devel/
 rasberrypi/catkin_ws/src/CMakeLists.txt
 rasberrypi/catkin_ws/.catkin_workspace
-*.pt

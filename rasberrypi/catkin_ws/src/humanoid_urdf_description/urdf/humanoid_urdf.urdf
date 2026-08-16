@@ -1,370 +1,9 @@
 <?xml version="1.0" ?>
-<robot name="humanoid_urdf">
+<robot name="humanoid_urdf" xmlns:xacro="http://www.ros.org/wiki/xacro">
 
-<!-- <xacro:include filename="$(find humanoid_urdf_description)/urdf/materials.xacro" />
+<xacro:include filename="$(find humanoid_urdf_description)/urdf/materials.xacro" />
 <xacro:include filename="$(find humanoid_urdf_description)/urdf/humanoid_urdf.trans" />
-<xacro:include filename="$(find humanoid_urdf_description)/urdf/humanoid_urdf.gazebo" /> -->
-
-
-<material name="silver">
-  <color rgba="0.700 0.700 0.700 1.000"/>
-</material>
-
-
-<transmission name="lgripper_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="lgripper_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="lgripper_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="lgrip_fin2_slider_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="lgrip_fin2_slider">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="lgrip_fin2_slider_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="lgrip_fin1_slider_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="lgrip_fin1_slider">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="lgrip_fin1_slider_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="lshd_yaw_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="lshd_yaw_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="lshd_yaw_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="lwrist_pitch_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="lwrist_pitch_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="lwrist_pitch_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="lwrist_yaw_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="lwrist_yaw_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="lwrist_yaw_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="rwrist_pitch_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="rwrist_pitch_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="rwrist_pitch_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="rwrist_yaw_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="rwrist_yaw_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="rwrist_yaw_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="rgripper_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="rgripper_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="rgripper_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="rgrip_fin1_slider_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="rgrip_fin1_slider">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="rgrip_fin1_slider_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="rgrip_fin2_slider_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="rgrip_fin2_slider">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="rgrip_fin2_slider_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="rshd_pitch_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="rshd_pitch_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="rshd_pitch_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="lshd_pitch_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="lshd_pitch_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="lshd_pitch_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="neck_roll_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="neck_roll_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="neck_roll_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="neck_pitch_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="neck_pitch_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="neck_pitch_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="lbase_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="lbase_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="lbase_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="ll1_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="ll1_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="ll1_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="rbase_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="rbase_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="rbase_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="rl3_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="rl3_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="rl3_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="rl5_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="rl5_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="rl5_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="ll2_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="ll2_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="ll2_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="ll3_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="ll3_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="ll3_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="ll5_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="ll5_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="ll5_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="rl1_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="rl1_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="rl1_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="rl2_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="rl2_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="rl2_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="lshd_roll_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="lshd_roll_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="lshd_roll_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="lelbow_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="lelbow_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="lelbow_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="rshd_roll_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="rshd_roll_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="rshd_roll_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="relbow_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="relbow_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="relbow_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="ll4_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="ll4_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="ll4_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="rl4_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="rl4_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="rl4_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-<transmission name="rshd_yaw_joint_tran">
-  <type>transmission_interface/SimpleTransmission</type>
-  <joint name="rshd_yaw_joint">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-  </joint>
-  <actuator name="rshd_yaw_joint_actr">
-    <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
-    <mechanicalReduction>1</mechanicalReduction>
-  </actuator>
-</transmission>
-
-
-
+<xacro:include filename="$(find humanoid_urdf_description)/urdf/humanoid_urdf.gazebo" />
 <link name="base_link">
   <inertial>
     <origin xyz="-0.005799007929849412 -0.0019422579747158052 0.3350890323845471" rpy="0 0 0"/>
@@ -388,19 +27,19 @@
 
 <link name="lgrip_gear_1">
   <inertial>
-    <origin xyz="-2.2601354432438825e-07 0.0025174014361563635 -1.5543648107518848e-07" rpy="0 0 0"/>
+    <origin xyz="-2.2601354418907982e-07 0.00021978337031332285 -0.002507423969669409" rpy="0 0 0"/>
     <mass value="0.002515348048999408"/>
-    <inertia ixx="1e-06" iyy="1e-06" izz="1e-06" ixy="-0.0" iyz="0.0" ixz="-0.0"/>
+    <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="-0.0" iyz="-0.0" ixz="0.0"/>
   </inertial>
   <visual>
-    <origin xyz="-0.018924 -0.316806 -0.379216" rpy="0 0 0"/>
+    <origin xyz="-0.018924 -0.122784 -0.172878" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/lgrip_gear_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.018924 -0.316806 -0.379216" rpy="0 0 0"/>
+    <origin xyz="-0.018924 -0.122784 -0.172878" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/lgrip_gear_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -409,19 +48,19 @@
 
 <link name="lgrip_fin2_1">
   <inertial>
-    <origin xyz="0.015181617337629249 0.03868576288307052 0.019122628822199395" rpy="0 0 0"/>
+    <origin xyz="0.015181617337629228 0.022421417269875246 -0.036871927918564223" rpy="0 0 0"/>
     <mass value="0.03333747674318192"/>
-    <inertia ixx="1.6e-05" iyy="7e-06" izz="1.3e-05" ixy="0.0" iyz="0.0" ixz="0.0"/>
+    <inertia ixx="1.6e-05" iyy="1.3e-05" izz="7e-06" ixy="0.0" iyz="0.0" ixz="-0.0"/>
   </inertial>
   <visual>
-    <origin xyz="-0.018924 -0.316006 -0.360016" rpy="0 0 0"/>
+    <origin xyz="-0.018924 -0.103588 -0.172002" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/lgrip_fin2_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.018924 -0.316006 -0.360016" rpy="0 0 0"/>
+    <origin xyz="-0.018924 -0.103588 -0.172002" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/lgrip_fin2_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -430,19 +69,19 @@
 
 <link name="lgrip_fin1_1">
   <inertial>
-    <origin xyz="-0.015181918559323078 0.03868576288306286 -0.019122939695159213" rpy="0 0 0"/>
+    <origin xyz="-0.015181918559323089 -0.01567873890590002 -0.04020446832798316" rpy="0 0 0"/>
     <mass value="0.03333747674318192"/>
-    <inertia ixx="1.6e-05" iyy="7e-06" izz="1.3e-05" ixy="-0.0" iyz="-0.0" ixz="0.0"/>
+    <inertia ixx="1.6e-05" iyy="1.3e-05" izz="7e-06" ixy="0.0" iyz="1e-06" ixz="0.0"/>
   </inertial>
   <visual>
-    <origin xyz="-0.018831 -0.316006 -0.398416" rpy="0 0 0"/>
+    <origin xyz="-0.018831 -0.141842 -0.175348" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/lgrip_fin1_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.018831 -0.316006 -0.398416" rpy="0 0 0"/>
+    <origin xyz="-0.018831 -0.141842 -0.175348" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/lgrip_fin1_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -451,9 +90,9 @@
 
 <link name="lshd_2xl_1">
   <inertial>
-    <origin xyz="0.01821386883633947 0.004735041880164534 0.011929063948829088" rpy="0 0 0"/>
+    <origin xyz="0.01821386883633947 0.01229677057931565 -0.003677196420889317" rpy="0 0 0"/>
     <mass value="0.08476710413561503"/>
-    <inertia ixx="2.8e-05" iyy="2.3e-05" izz="2.2e-05" ixy="-1e-06" iyz="-0.0" ixz="-0.0"/>
+    <inertia ixx="2.8e-05" iyy="2.2e-05" izz="2.3e-05" ixy="-0.0" iyz="0.0" ixz="1e-06"/>
   </inertial>
   <visual>
     <origin xyz="7.6e-05 -0.107206 -0.381916" rpy="0 0 0"/>
@@ -472,19 +111,19 @@
 
 <link name="lwrist_1">
   <inertial>
-    <origin xyz="-0.0007578337003172897 -0.0114192445318681 -0.026135356324180625" rpy="0 0 0"/>
+    <origin xyz="-0.0007578337003173279 -0.027030919070178794 0.009098655338731915" rpy="0 0 0"/>
     <mass value="0.08793324627970979"/>
-    <inertia ixx="3e-05" iyy="2.4e-05" izz="2.4e-05" ixy="0.0" iyz="0.0" ixz="-1e-06"/>
+    <inertia ixx="3e-05" iyy="2.4e-05" izz="2.4e-05" ixy="-1e-06" iyz="-0.0" ixz="-0.0"/>
   </inertial>
   <visual>
-    <origin xyz="-0.018924 -0.277106 -0.407916" rpy="0 0 0"/>
+    <origin xyz="-0.018924 -0.147915 -0.214928" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/lwrist_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.018924 -0.277106 -0.407916" rpy="0 0 0"/>
+    <origin xyz="-0.018924 -0.147915 -0.214928" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/lwrist_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -493,19 +132,19 @@
 
 <link name="lgripper_1">
   <inertial>
-    <origin xyz="0.010330923951847534 0.02723895972842466 0.0029692931888307683" rpy="0 0 0"/>
+    <origin xyz="0.010330923951847456 0.005332475134864734 -0.026876175254260504" rpy="0 0 0"/>
     <mass value="0.07577726651931928"/>
-    <inertia ixx="3.3e-05" iyy="6.7e-05" izz="7.9e-05" ixy="2e-06" iyz="1e-06" ixz="6e-06"/>
+    <inertia ixx="3.3e-05" iyy="7.9e-05" izz="6.7e-05" ixy="6e-06" iyz="1e-06" ixz="-2e-06"/>
   </inertial>
   <visual>
-    <origin xyz="7.6e-05 -0.277106 -0.379216" rpy="0 0 0"/>
+    <origin xyz="7.6e-05 -0.119324 -0.212427" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/lgripper_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="7.6e-05 -0.277106 -0.379216" rpy="0 0 0"/>
+    <origin xyz="7.6e-05 -0.119324 -0.212427" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/lgripper_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -514,19 +153,19 @@
 
 <link name="rwrist_1">
   <inertial>
-    <origin xyz="0.0007573816822770661 0.011419834584302568 -0.026135356393195752" rpy="0 0 0"/>
+    <origin xyz="0.0007573816822589452 0.027031509052206026 0.009098655484584856" rpy="0 0 0"/>
     <mass value="0.08793324627970973"/>
-    <inertia ixx="3e-05" iyy="2.4e-05" izz="2.4e-05" ixy="0.0" iyz="-0.0" ixz="1e-06"/>
+    <inertia ixx="3e-05" iyy="2.4e-05" izz="2.4e-05" ixy="-1e-06" iyz="0.0" ixz="0.0"/>
   </inertial>
   <visual>
-    <origin xyz="-0.017924 0.280904 -0.407916" rpy="0 0 0"/>
+    <origin xyz="-0.017924 0.151713 -0.214928" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/rwrist_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.017924 0.280904 -0.407916" rpy="0 0 0"/>
+    <origin xyz="-0.017924 0.151713 -0.214928" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/rwrist_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -535,19 +174,19 @@
 
 <link name="rgripper_1">
   <inertial>
-    <origin xyz="-0.027675786426083246 -0.027238369666215956 0.0030303528673583102" rpy="0 0 0"/>
+    <origin xyz="-0.02767578642610572 -0.005392712548755937 -0.026870853391020216" rpy="0 0 0"/>
     <mass value="0.07577726656267422"/>
-    <inertia ixx="3.3e-05" iyy="6.7e-05" izz="8e-05" ixy="-2e-06" iyz="-0.0" ixz="6e-06"/>
+    <inertia ixx="3.3e-05" iyy="7.9e-05" izz="6.7e-05" ixy="-6e-06" iyz="-1e-06" ixz="-2e-06"/>
   </inertial>
   <visual>
-    <origin xyz="-0.036924 0.280904 -0.379216" rpy="0 0 0"/>
+    <origin xyz="-0.036924 0.123122 -0.212427" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/rgripper_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.036924 0.280904 -0.379216" rpy="0 0 0"/>
+    <origin xyz="-0.036924 0.123122 -0.212427" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/rgripper_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -556,19 +195,19 @@
 
 <link name="rgrip_gear_1">
   <inertial>
-    <origin xyz="-2.2601348083697848e-07 -0.002516811383721951 -1.5579455969749745e-07" rpy="0 0 0"/>
+    <origin xyz="-2.2601350544229626e-07 -0.00021919310032275652 -0.0025074238490095935" rpy="0 0 0"/>
     <mass value="0.002515348048999408"/>
-    <inertia ixx="1e-06" iyy="1e-06" izz="1e-06" ixy="-0.0" iyz="0.0" ixz="0.0"/>
+    <inertia ixx="0.0" iyy="0.0" izz="0.0" ixy="-0.0" iyz="0.0" ixz="-0.0"/>
   </inertial>
   <visual>
-    <origin xyz="-0.017924 0.320604 -0.379216" rpy="0 0 0"/>
+    <origin xyz="-0.017924 0.126582 -0.172878" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/rgrip_gear_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.017924 0.320604 -0.379216" rpy="0 0 0"/>
+    <origin xyz="-0.017924 0.126582 -0.172878" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/rgrip_gear_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -577,19 +216,19 @@
 
 <link name="rgrip_fin1_1">
   <inertial>
-    <origin xyz="-0.015182069364654336 -0.038685172830636216 0.019122628464117664" rpy="0 0 0"/>
+    <origin xyz="-0.015182069364682959 -0.022421826999883168 -0.036871927797902965" rpy="0 0 0"/>
     <mass value="0.03333747674318192"/>
-    <inertia ixx="1.6e-05" iyy="7e-06" izz="1.3e-05" ixy="0.0" iyz="-0.0" ixz="-0.0"/>
+    <inertia ixx="1.6e-05" iyy="1.3e-05" izz="7e-06" ixy="0.0" iyz="-0.0" ixz="0.0"/>
   </inertial>
   <visual>
-    <origin xyz="-0.017924 0.319804 -0.360016" rpy="0 0 0"/>
+    <origin xyz="-0.017924 0.107385 -0.172002" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/rgrip_fin1_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.017924 0.319804 -0.360016" rpy="0 0 0"/>
+    <origin xyz="-0.017924 0.107385 -0.172002" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/rgrip_fin1_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -598,19 +237,19 @@
 
 <link name="rgrip_fin2_1">
   <inertial>
-    <origin xyz="0.01518176814312406 -0.038685172830628334 -0.01912294005323717" rpy="0 0 0"/>
+    <origin xyz="0.015181768143095464 0.015678329175891376 -0.040204468207325345" rpy="0 0 0"/>
     <mass value="0.03333747674318192"/>
-    <inertia ixx="1.6e-05" iyy="7e-06" izz="1.3e-05" ixy="-0.0" iyz="0.0" ixz="-0.0"/>
+    <inertia ixx="1.6e-05" iyy="1.3e-05" izz="7e-06" ixy="0.0" iyz="-1e-06" ixz="-0.0"/>
   </inertial>
   <visual>
-    <origin xyz="-0.017831 0.319804 -0.398416" rpy="0 0 0"/>
+    <origin xyz="-0.017831 0.145639 -0.175348" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/rgrip_fin2_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.017831 0.319804 -0.398416" rpy="0 0 0"/>
+    <origin xyz="-0.017831 0.145639 -0.175348" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/rgrip_fin2_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -663,7 +302,7 @@
   <inertial>
     <origin xyz="-5.8993040728053114e-06 0.0005056988631585504 0.00783028892749299" rpy="0 0 0"/>
     <mass value="0.005062828410877468"/>
-    <inertia ixx="1e-06" iyy="1e-06" izz="1e-06" ixy="-0.0" iyz="0.0" ixz="0.0"/>
+    <inertia ixx="1e-06" iyy="0.0" izz="1e-06" ixy="-0.0" iyz="0.0" ixz="0.0"/>
   </inertial>
   <visual>
     <origin xyz="-0.009136 0.002011 -0.419533" rpy="0 0 0"/>
@@ -806,42 +445,21 @@
   </collision>
 </link>
 
-<link name="ll3_1">
-  <inertial>
-    <origin xyz="-6.459476128334004e-05 0.019596398737445654 -0.06439679539985171" rpy="0 0 0"/>
-    <mass value="0.07734223550377772"/>
-    <inertia ixx="5.7e-05" iyy="5e-05" izz="1.7e-05" ixy="0.0" iyz="-1e-06" ixz="-0.0"/>
-  </inertial>
-  <visual>
-    <origin xyz="-0.003177 -0.03903 -0.223525" rpy="0 0 0"/>
-    <geometry>
-      <mesh filename="package://humanoid_urdf_description/meshes/ll3_1.stl" scale="0.001 0.001 0.001"/>
-    </geometry>
-    <material name="silver"/>
-  </visual>
-  <collision>
-    <origin xyz="-0.003177 -0.03903 -0.223525" rpy="0 0 0"/>
-    <geometry>
-      <mesh filename="package://humanoid_urdf_description/meshes/ll3_1.stl" scale="0.001 0.001 0.001"/>
-    </geometry>
-  </collision>
-</link>
-
 <link name="ll4_1">
   <inertial>
-    <origin xyz="4.289020351052643e-07 0.020218097688314292 -0.04624264243578578" rpy="0 0 0"/>
+    <origin xyz="-1.562105035831686e-07 0.020218097688314243 -0.046243243451467256" rpy="0 0 0"/>
     <mass value="0.02280560585988143"/>
     <inertia ixx="2.4e-05" iyy="1.7e-05" izz="9e-06" ixy="0.0" iyz="0.0" ixz="-0.0"/>
   </inertial>
   <visual>
-    <origin xyz="-0.003112 -0.03903 -0.136231" rpy="0 0 0"/>
+    <origin xyz="-0.003177 -0.04143 -0.131032" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/ll4_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.003112 -0.03903 -0.136231" rpy="0 0 0"/>
+    <origin xyz="-0.003177 -0.04143 -0.131032" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/ll4_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -850,19 +468,19 @@
 
 <link name="ll6_1">
   <inertial>
-    <origin xyz="0.02746325994504503 0.011389976112803277 -0.030840273010610902" rpy="0 0 0"/>
+    <origin xyz="0.027462674832506355 0.011389976112803235 -0.030839874026292367" rpy="0 0 0"/>
     <mass value="0.08571227124117566"/>
     <inertia ixx="6.5e-05" iyy="0.000162" izz="0.000221" ixy="0.0" iyz="2e-06" ixz="-1e-06"/>
   </inertial>
   <visual>
-    <origin xyz="0.026127 -0.05803 -0.043746" rpy="0 0 0"/>
+    <origin xyz="0.026062 -0.06043 -0.038546" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/ll6_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="0.026127 -0.05803 -0.043746" rpy="0 0 0"/>
+    <origin xyz="0.026062 -0.06043 -0.038546" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/ll6_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -913,19 +531,19 @@
 
 <link name="lshd_yaw_1">
   <inertial>
-    <origin xyz="-2.303931278917204e-07 0.020294759695708903 -1.2973680074690463e-07" rpy="0 0 0"/>
+    <origin xyz="-2.303931278258009e-07 0.0017691391517789395 -0.02021746469897523" rpy="0 0 0"/>
     <mass value="0.016893673089971303"/>
-    <inertia ixx="7e-06" iyy="5e-06" izz="4e-06" ixy="-0.0" iyz="0.0" ixz="-0.0"/>
+    <inertia ixx="7e-06" iyy="4e-06" izz="5e-06" ixy="-0.0" iyz="-0.0" ixz="0.0"/>
   </inertial>
   <visual>
-    <origin xyz="-0.018924 -0.133206 -0.381916" rpy="0 0 0"/>
+    <origin xyz="-0.018924 -0.109472 -0.356015" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/lshd_yaw_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.018924 -0.133206 -0.381916" rpy="0 0 0"/>
+    <origin xyz="-0.018924 -0.109472 -0.356015" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/lshd_yaw_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -934,19 +552,19 @@
 
 <link name="lelbow_1">
   <inertial>
-    <origin xyz="-2.259787635905397e-07 0.028605080405966404 0.018959702203030337" rpy="0 0 0"/>
+    <origin xyz="-2.2597876358013136e-07 0.02138112207525253 -0.026843371313703568" rpy="0 0 0"/>
     <mass value="0.08838540484513303"/>
-    <inertia ixx="9.8e-05" iyy="3.2e-05" izz="7.6e-05" ixy="-0.0" iyz="-2e-06" ixz="0.0"/>
+    <inertia ixx="9.8e-05" iyy="7.6e-05" izz="3.3e-05" ixy="0.0" iyz="6e-06" ixz="0.0"/>
   </inertial>
   <visual>
-    <origin xyz="-0.018924 -0.176906 -0.362916" rpy="0 0 0"/>
+    <origin xyz="-0.018924 -0.094353 -0.310825" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/lelbow_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.018924 -0.176906 -0.362916" rpy="0 0 0"/>
+    <origin xyz="-0.018924 -0.094353 -0.310825" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/lelbow_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -955,19 +573,19 @@
 
 <link name="rshd_yaw_1">
   <inertial>
-    <origin xyz="-2.2179481354647756e-07 -0.02029416854528368 -1.275364638897436e-07" rpy="0 0 0"/>
+    <origin xyz="-2.2179481884432306e-07 -0.0017685513347718562 -0.02021746326152224" rpy="0 0 0"/>
     <mass value="0.01689367308997018"/>
-    <inertia ixx="7e-06" iyy="5e-06" izz="4e-06" ixy="-0.0" iyz="0.0" ixz="0.0"/>
+    <inertia ixx="7e-06" iyy="4e-06" izz="5e-06" ixy="-0.0" iyz="0.0" ixz="-0.0"/>
   </inertial>
   <visual>
-    <origin xyz="-0.017924 0.137004 -0.381916" rpy="0 0 0"/>
+    <origin xyz="-0.017924 0.11327 -0.356015" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/rshd_yaw_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.017924 0.137004 -0.381916" rpy="0 0 0"/>
+    <origin xyz="-0.017924 0.11327 -0.356015" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/rshd_yaw_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -976,19 +594,19 @@
 
 <link name="relbow_1">
   <inertial>
-    <origin xyz="-2.2604826054387073e-07 -0.02860449035352075 0.01895970184496676" rpy="0 0 0"/>
+    <origin xyz="-2.260482717952872e-07 -0.021380531805275896 -0.02684337119303143" rpy="0 0 0"/>
     <mass value="0.08838540484513334"/>
-    <inertia ixx="9.8e-05" iyy="3.2e-05" izz="7.6e-05" ixy="-0.0" iyz="2e-06" ixz="-0.0"/>
+    <inertia ixx="9.8e-05" iyy="7.6e-05" izz="3.3e-05" ixy="0.0" iyz="-6e-06" ixz="-0.0"/>
   </inertial>
   <visual>
-    <origin xyz="-0.017924 0.180704 -0.362916" rpy="0 0 0"/>
+    <origin xyz="-0.017924 0.098151 -0.310825" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/relbow_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.017924 0.180704 -0.362916" rpy="0 0 0"/>
+    <origin xyz="-0.017924 0.098151 -0.310825" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/relbow_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -997,19 +615,19 @@
 
 <link name="ll5_1">
   <inertial>
-    <origin xyz="-0.022667660570277647 0.019245692705025262 0.012148804951260625" rpy="0 0 0"/>
+    <origin xyz="-0.022668245682816324 0.019245692705025214 0.01214920393557916" rpy="0 0 0"/>
     <mass value="0.13078226931984807"/>
     <inertia ixx="3.4e-05" iyy="0.000105" izz="9.4e-05" ixy="-1e-06" iyz="0.0" ixz="0.0"/>
   </inertial>
   <visual>
-    <origin xyz="-0.003112 -0.03903 -0.043746" rpy="0 0 0"/>
+    <origin xyz="-0.003177 -0.04143 -0.038546" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/ll5_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
     <material name="silver"/>
   </visual>
   <collision>
-    <origin xyz="-0.003112 -0.03903 -0.043746" rpy="0 0 0"/>
+    <origin xyz="-0.003177 -0.04143 -0.038546" rpy="0 0 0"/>
     <geometry>
       <mesh filename="package://humanoid_urdf_description/meshes/ll5_1.stl" scale="0.001 0.001 0.001"/>
     </geometry>
@@ -1039,9 +657,9 @@
 
 <link name="rshd_2xl_1">
   <inertial>
-    <origin xyz="0.018505184628533105 -0.004985074770461395 0.01229030110927748" rpy="0 0 0"/>
+    <origin xyz="0.01850518462853406 -0.012677886438757169 -0.003895381622762928" rpy="0 0 0"/>
     <mass value="0.08457536214369274"/>
-    <inertia ixx="2.8e-05" iyy="2.3e-05" izz="2.1e-05" ixy="-1e-06" iyz="1e-06" ixz="0.0"/>
+    <inertia ixx="2.8e-05" iyy="2.1e-05" izz="2.3e-05" ixy="-0.0" iyz="-0.0" ixz="-1e-06"/>
   </inertial>
   <visual>
     <origin xyz="7.6e-05 0.111004 -0.381916" rpy="0 0 0"/>
@@ -1058,35 +676,49 @@
   </collision>
 </link>
 
+<link name="ll3_1">
+  <inertial>
+    <origin xyz="-1.798738220449951e-07 -0.016003601262554387 -0.06959639641553317" rpy="0 0 0"/>
+    <mass value="0.07734223550377772"/>
+    <inertia ixx="5.7e-05" iyy="5e-05" izz="1.7e-05" ixy="0.0" iyz="-1e-06" ixz="-0.0"/>
+  </inertial>
+  <visual>
+    <origin xyz="-0.003177 -0.07703 -0.223525" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://humanoid_urdf_description/meshes/ll3_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+    <material name="silver"/>
+  </visual>
+  <collision>
+    <origin xyz="-0.003177 -0.07703 -0.223525" rpy="0 0 0"/>
+    <geometry>
+      <mesh filename="package://humanoid_urdf_description/meshes/ll3_1.stl" scale="0.001 0.001 0.001"/>
+    </geometry>
+  </collision>
+</link>
+
 <joint name="lgripper_joint" type="revolute">
-  <origin xyz="0.019 0.0397 0.0" rpy="0 0 0"/>
+  <origin xyz="0.019 0.00346 -0.039549" rpy="0 0 0"/>
   <parent link="lgripper_1"/>
   <child link="lgrip_gear_1"/>
-  <axis xyz="-0.0 1.0 0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
-  <limit upper="0.8727" lower="-5.2360" effort="100" velocity="100"/>
+  <axis xyz="-0.0 0.087156 -0.996195"/>
+  <limit upper="0.261799" lower="-1.745329" effort="100" velocity="100"/>
 </joint>
 
-<!-- 슬레이브 1: fin1 -->
-<joint name="lgrip_fin1_slider" type="prismatic">
-  <origin xyz="0.018907 0.0389 0.0192" rpy="0 0 0"/>
-  <parent link="lgripper_1"/>
-  <child link="lgrip_fin1_1"/>
-  <axis xyz="1.0 0.0 0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>
-  <limit upper="0.007" lower="-0.02" effort="100" velocity="100"/>
-  <mimic joint="lgripper_joint" multiplier="0.00869" offset="0.0"/>
-</joint>
-
-<!-- 슬레이브 2: fin2 (반대 방향) -->
 <joint name="lgrip_fin2_slider" type="prismatic">
-  <origin xyz="0.019 0.0389 -0.0192" rpy="0 0 0"/>
+  <origin xyz="0.019 -0.015736 -0.040425" rpy="0 0 0"/>
   <parent link="lgripper_1"/>
   <child link="lgrip_fin2_1"/>
-  <axis xyz="1.0 0.0 0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>
-  <limit upper="0.02" lower="-0.007" effort="100" velocity="100"/>
-  <mimic joint="lgrip_fin1_slider" multiplier="-1.0" offset="0.0"/>
+  <axis xyz="1.0 0.0 -0.0"/>
+  <limit upper="0.0" lower="0.0" effort="100" velocity="100"/>
+</joint>
+
+<joint name="lgrip_fin1_slider" type="prismatic">
+  <origin xyz="0.018907 0.022518 -0.037079" rpy="0 0 0"/>
+  <parent link="lgripper_1"/>
+  <child link="lgrip_fin1_1"/>
+  <axis xyz="1.0 0.0 -0.0"/>
+  <limit upper="0.0" lower="0.0" effort="100" velocity="100"/>
 </joint>
 
 <joint name="lshd_yaw_joint" type="revolute">
@@ -1094,73 +726,63 @@
   <parent link="lshd_pitch_1"/>
   <child link="lshd_2xl_1"/>
   <axis xyz="1.0 -0.0 0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
-  <limit upper="0.349066" lower="-1.570796" effort="100" velocity="100"/>
+  <limit upper="1.570796" lower="-0.349066" effort="100" velocity="100"/>
 </joint>
 
 <joint name="lwrist_pitch_joint" type="revolute">
-  <origin xyz="0.0 0.1002 0.045" rpy="0 0 0"/>
+  <origin xyz="0.0 0.053562 -0.095897" rpy="0 0 0"/>
   <parent link="lelbow_1"/>
   <child link="lwrist_1"/>
-  <axis xyz="0.0 0.0 -1.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
+  <axis xyz="0.0 -0.996195 -0.087156"/>
   <limit upper="1.570796" lower="-1.570796" effort="100" velocity="100"/>
 </joint>
 
 <joint name="lwrist_yaw_joint" type="revolute">
-  <origin xyz="-0.019 0.0 -0.0287" rpy="0 0 0"/>
+  <origin xyz="-0.019 -0.028591 -0.002501" rpy="0 0 0"/>
   <parent link="lwrist_1"/>
   <child link="lgripper_1"/>
-  <axis xyz="-1.0 -0.0 -0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
+  <axis xyz="-1.0 -0.0 0.0"/>
   <limit upper="0.349066" lower="-0.349066" effort="100" velocity="100"/>
 </joint>
 
 <joint name="rwrist_pitch_joint" type="revolute">
-  <origin xyz="0.0 -0.1002 0.045" rpy="0 0 0"/>
+  <origin xyz="0.0 -0.053562 -0.095897" rpy="0 0 0"/>
   <parent link="relbow_1"/>
   <child link="rwrist_1"/>
-  <axis xyz="0.0 -0.0 -1.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
+  <axis xyz="0.0 0.996195 -0.087156"/>
   <limit upper="1.570796" lower="-1.570796" effort="100" velocity="100"/>
 </joint>
 
 <joint name="rwrist_yaw_joint" type="revolute">
-  <origin xyz="0.019 0.0 -0.0287" rpy="0 0 0"/>
+  <origin xyz="0.019 0.028591 -0.002501" rpy="0 0 0"/>
   <parent link="rwrist_1"/>
   <child link="rgripper_1"/>
-  <axis xyz="1.0 0.0 0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
+  <axis xyz="1.0 -0.0 0.0"/>
   <limit upper="0.349066" lower="-0.349066" effort="100" velocity="100"/>
 </joint>
 
 <joint name="rgripper_joint" type="revolute">
-  <origin xyz="-0.019 -0.0397 0.0" rpy="0 0 0"/>
+  <origin xyz="-0.019 -0.00346 -0.039549" rpy="0 0 0"/>
   <parent link="rgripper_1"/>
   <child link="rgrip_gear_1"/>
-  <axis xyz="-0.0 1.0 0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
-  <limit upper="0.8727" lower="-5.2360" effort="100" velocity="100"/>
+  <axis xyz="-0.0 0.087156 0.996195"/>
+  <limit upper="0.261799" lower="-1.745329" effort="100" velocity="100"/>
 </joint>
 
 <joint name="rgrip_fin1_slider" type="prismatic">
-  <origin xyz="-0.019 -0.0389 -0.0192" rpy="0 0 0"/>
+  <origin xyz="-0.019 0.015737 -0.040425" rpy="0 0 0"/>
   <parent link="rgripper_1"/>
   <child link="rgrip_fin1_1"/>
   <axis xyz="1.0 0.0 0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
-  <limit upper="0.007" lower="-0.02" effort="100" velocity="100"/>
-  <mimic joint="rgripper_joint" multiplier="0.00869" offset="0.0"/>
+  <limit upper="0.0" lower="0.0" effort="100" velocity="100"/>
 </joint>
 
 <joint name="rgrip_fin2_slider" type="prismatic">
-  <origin xyz="-0.019093 -0.0389 0.0192" rpy="0 0 0"/>
+  <origin xyz="-0.019093 -0.022517 -0.037079" rpy="0 0 0"/>
   <parent link="rgripper_1"/>
   <child link="rgrip_fin2_1"/>
   <axis xyz="1.0 0.0 0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
-  <limit upper="0.02" lower="-0.007" effort="100" velocity="100"/>
-  <mimic joint="rgrip_fin1_slider" multiplier="-1.0" offset="0.0"/>
+  <limit upper="0.0" lower="0.0" effort="100" velocity="100"/>
 </joint>
 
 <joint name="rshd_pitch_joint" type="revolute">
@@ -1168,8 +790,7 @@
   <parent link="base_link"/>
   <child link="rshd_pitch_1"/>
   <axis xyz="-0.0 -1.0 0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
-  <limit upper="3.141592" lower="-3.141592" effort="100" velocity="100"/>
+  <limit upper="1.570796" lower="-1.570796" effort="100" velocity="100"/>
 </joint>
 
 <joint name="lshd_pitch_joint" type="revolute">
@@ -1177,8 +798,7 @@
   <parent link="base_link"/>
   <child link="lshd_pitch_1"/>
   <axis xyz="0.0 1.0 -0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
-  <limit upper="3.141592" lower="-3.141592" effort="100" velocity="100"/>
+  <limit upper="1.570796" lower="-1.570796" effort="100" velocity="100"/>
 </joint>
 
 <joint name="neck_roll_joint" type="revolute">
@@ -1186,7 +806,6 @@
   <parent link="base_link"/>
   <child link="neck_1"/>
   <axis xyz="-0.0 -0.0 -1.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
   <limit upper="1.570796" lower="-1.570796" effort="100" velocity="100"/>
 </joint>
 
@@ -1195,7 +814,6 @@
   <parent link="neck_1"/>
   <child link="head_1"/>
   <axis xyz="0.0 -1.0 0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
   <limit upper="1.570796" lower="-1.570796" effort="100" velocity="100"/>
 </joint>
 
@@ -1204,7 +822,6 @@
   <parent link="base_link"/>
   <child link="ll1_1"/>
   <axis xyz="0.0 -0.0 -1.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
   <limit upper="0.0" lower="-1.570796" effort="100" velocity="100"/>
 </joint>
 
@@ -1213,7 +830,6 @@
   <parent link="ll1_1"/>
   <child link="ll2_1"/>
   <axis xyz="-1.0 -0.0 -0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
   <limit upper="0.349066" lower="-1.570796" effort="100" velocity="100"/>
 </joint>
 
@@ -1222,7 +838,6 @@
   <parent link="base_link"/>
   <child link="rl1_1"/>
   <axis xyz="0.0 -0.0 -1.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
   <limit upper="1.570796" lower="0.0" effort="100" velocity="100"/>
 </joint>
 
@@ -1231,7 +846,6 @@
   <parent link="rl3_1"/>
   <child link="rl4_1"/>
   <axis xyz="-0.0 1.0 -0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
   <limit upper="1.570796" lower="0.0" effort="100" velocity="100"/>
 </joint>
 
@@ -1240,25 +854,14 @@
   <parent link="rl5_1"/>
   <child link="rl6_1"/>
   <axis xyz="1.0 0.0 0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
   <limit upper="0.349066" lower="-1.570796" effort="100" velocity="100"/>
 </joint>
 
-<joint name="ll2_joint" type="revolute">
-  <origin xyz="-0.01825 -0.019 -8e-06" rpy="0 0 0"/>
-  <parent link="ll2_1"/>
-  <child link="ll3_1"/>
-  <axis xyz="0.0 -1.0 0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
-  <limit upper="1.570796" lower="-0.349066" effort="100" velocity="100"/>
-</joint>
-
 <joint name="ll3_joint" type="revolute">
-  <origin xyz="-6.5e-05 0.0 -0.087294" rpy="0 0 0"/>
+  <origin xyz="0.0 -0.0356 -0.092493" rpy="0 0 0"/>
   <parent link="ll3_1"/>
   <child link="ll4_1"/>
   <axis xyz="0.0 -1.0 0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
   <limit upper="0.0" lower="-1.570796" effort="100" velocity="100"/>
 </joint>
 
@@ -1267,7 +870,6 @@
   <parent link="ll5_1"/>
   <child link="ll6_1"/>
   <axis xyz="1.0 0.0 0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
   <limit upper="1.570796" lower="-0.349066" effort="100" velocity="100"/>
 </joint>
 
@@ -1276,7 +878,6 @@
   <parent link="rl1_1"/>
   <child link="rl2_1"/>
   <axis xyz="-1.0 -0.0 -0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
   <limit upper="1.570796" lower="-0.349066" effort="100" velocity="100"/>
 </joint>
 
@@ -1285,52 +886,46 @@
   <parent link="rl2_1"/>
   <child link="rl3_1"/>
   <axis xyz="-0.0 1.0 -0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
   <limit upper="0.349066" lower="-1.570796" effort="100" velocity="100"/>
 </joint>
 
 <joint name="lshd_roll_joint" type="revolute">
-  <origin xyz="0.019 0.026 0.0" rpy="0 0 0"/>
+  <origin xyz="0.019 0.002266 -0.025901" rpy="0 0 0"/>
   <parent link="lshd_2xl_1"/>
   <child link="lshd_yaw_1"/>
-  <axis xyz="-0.0 1.0 0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
+  <axis xyz="-0.0 0.087156 -0.996195"/>
   <limit upper="1.570796" lower="-1.570796" effort="100" velocity="100"/>
 </joint>
 
 <joint name="lelbow_joint" type="revolute">
-  <origin xyz="0.0 0.0437 -0.019" rpy="0 0 0"/>
+  <origin xyz="0.0 -0.015119 -0.04519" rpy="0 0 0"/>
   <parent link="lshd_yaw_1"/>
   <child link="lelbow_1"/>
-  <axis xyz="0.0 0.0 -1.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
+  <axis xyz="0.0 -0.996195 -0.087156"/>
   <limit upper="2.094395" lower="-2.094395" effort="100" velocity="100"/>
 </joint>
 
 <joint name="rshd_roll_joint" type="revolute">
-  <origin xyz="0.018 -0.026 0.0" rpy="0 0 0"/>
+  <origin xyz="0.018 -0.002266 -0.025901" rpy="0 0 0"/>
   <parent link="rshd_2xl_1"/>
   <child link="rshd_yaw_1"/>
-  <axis xyz="0.0 -1.0 0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
+  <axis xyz="0.0 -0.087156 -0.996195"/>
   <limit upper="1.570796" lower="-1.570796" effort="100" velocity="100"/>
 </joint>
 
 <joint name="relbow_joint" type="revolute">
-  <origin xyz="0.0 -0.0437 -0.019" rpy="0 0 0"/>
+  <origin xyz="0.0 0.015119 -0.04519" rpy="0 0 0"/>
   <parent link="rshd_yaw_1"/>
   <child link="relbow_1"/>
-  <axis xyz="-0.0 -0.0 -1.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
+  <axis xyz="-0.0 0.996195 -0.087156"/>
   <limit upper="2.094395" lower="-2.094395" effort="100" velocity="100"/>
 </joint>
 
 <joint name="ll4_joint" type="revolute">
-  <origin xyz="0.0 0.0 -0.092485" rpy="0 0 0"/>
+  <origin xyz="0.0 0.0 -0.092486" rpy="0 0 0"/>
   <parent link="ll4_1"/>
   <child link="ll5_1"/>
   <axis xyz="0.0 1.0 -0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
   <limit upper="0.349066" lower="-1.570796" effort="100" velocity="100"/>
 </joint>
 
@@ -1339,7 +934,6 @@
   <parent link="rl4_1"/>
   <child link="rl5_1"/>
   <axis xyz="0.0 -1.0 0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
   <limit upper="1.570796" lower="-0.349066" effort="100" velocity="100"/>
 </joint>
 
@@ -1348,8 +942,15 @@
   <parent link="rshd_pitch_1"/>
   <child link="rshd_2xl_1"/>
   <axis xyz="1.0 0.0 -0.0"/>
-  <dynamics damping="10.0" friction="0.0"/>  <!-- 이 줄 추가 -->
-  <limit upper="1.570796" lower="-0.349066" effort="100" velocity="100"/>
+  <limit upper="0.0" lower="-1.570796" effort="100" velocity="100"/>
+</joint>
+
+<joint name="ȸ�� 123" type="revolute">
+  <origin xyz="-0.01825 0.019 -8e-06" rpy="0 0 0"/>
+  <parent link="ll2_1"/>
+  <child link="ll3_1"/>
+  <axis xyz="-0.0 1.0 -0.0"/>
+  <limit upper="0.349066" lower="-1.570796" effort="100" velocity="100"/>
 </joint>
 
 </robot>

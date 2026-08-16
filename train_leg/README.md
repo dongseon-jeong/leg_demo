@@ -163,6 +163,17 @@ python scripts/rsl_rl/train.py --task=Template-Leg-Direct-v0 --num_envs=1000 --m
 
 ![이미지](../image/Pasted%20image%2020251129123624.png)
 
+모든 그래프가 우상향으로 그려지는지 모니터링
+![이미지](../image/203908.png)
+![이미지](../image/2039231.png)
+
+
+
+
+
+
+
+
 ```d
 ################################################################################
                      Learning iteration 6006/10000
@@ -307,7 +318,7 @@ DISPLAY=:0 xhost +
 source /opt/ros/noetic/setup.bash
 
 cd /workspace/catkin_ws 
-catkin_make 
+# catkin_make 
 source devel/setup.bash # 런치 파일 실행 
 
 # 1. 완벽한 소프트웨어 렌더링 강제 (Mesa softpipe 지정) 

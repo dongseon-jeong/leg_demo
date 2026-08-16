@@ -85,10 +85,6 @@ humanoid_urdf_controller:
     type: effort_controllers/JointPositionController
     joint: rl5_joint
     pid: {p: 100.0, i: 0.01, d: 10.0}
-  ll2_joint_position_controller:
-    type: effort_controllers/JointPositionController
-    joint: ll2_joint
-    pid: {p: 100.0, i: 0.01, d: 10.0}
   ll3_joint_position_controller:
     type: effort_controllers/JointPositionController
     joint: ll3_joint
@@ -132,4 +128,8 @@ humanoid_urdf_controller:
   rshd_yaw_joint_position_controller:
     type: effort_controllers/JointPositionController
     joint: rshd_yaw_joint
+    pid: {p: 100.0, i: 0.01, d: 10.0}
+  ll2_joint_position_controller:
+    type: effort_controllers/JointPositionController
+    joint: ll2_joint
     pid: {p: 100.0, i: 0.01, d: 10.0}

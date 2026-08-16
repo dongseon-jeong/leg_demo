@@ -145,7 +145,7 @@ python examples/teleop_ros2/python/teleop_ros2_node.py \
 ```
 기존 isaacteleop ros 스크립트를 실행한 뒤 메뉴얼과 같이 vr헤드셋 브라우저에서 웹서버를 접속 후 connect  
 [메뉴얼참고](https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html)  
-![alt text](image.png)
+![alt text](../image/image1.png)
 
 
 isaacsim과 teleop서버를 실행 후 토픽리스트를 확인  
